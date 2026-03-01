@@ -1,0 +1,194 @@
+import React from "react";
+import { useKnowledgebase } from "../../hooks/useKnowledgebase";
+
+const KnowledgebasePanel = ({ projectId }) => {
+  const {
+    docs,
+    loading,
+    uploading,
+    analyzingDocId,
+    error,
+    docLink,
+    setDocLink,
+    uploadFiles,
+    analyzeDoc,
+    onSubmitDocLink,
+    uiMessage,
+    clearUiMessage,
+    analyzePromptDoc,
+    analyzePromptNow,
+    analyzePromptLater,
+    repoLinkInput,
+    setRepoLinkInput,
+    savedRepoLink,
+    repoLoading,
+    saveRepoLink,
+    analyzeRepo,
+    patTokenInput,
+    setPatTokenInput,
+    savedPatToken,
+    patLoading,
+    isPatEditing,
+    startEditPat,
+    savePatToken,
+  } = useKnowledgebase(projectId);
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    uploadFiles(e.dataTransfer.files);
+  };
+
+  return (
+    <div className="kb-layout">
+      <aside className="kb-left">
+        <div className="kb-left__header">
+          <h3>Documents</h3>
+          <span>{docs.length}</span>
+        </div>
+
+        {loading ? <p className="kb-muted">Loading...</p> : null}
+        {error ? <p className="projects-error">{error}</p> : null}
+
+        <div className="kb-doc-list">
+          {docs.map((doc) => (
+            <article key={doc._id} className="kb-doc-item">
+              <a href={doc.fileurl} target="_blank" rel="noreferrer" className="kb-doc-link">
+                {doc.fileName}
+              </a>
+
+              <div className="kb-doc-actions">
+                {doc.isAnalysized ? (
+                  <span className="kb-badge">Analyzed</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="projects-btn projects-btn--tiny"
+                    disabled={analyzingDocId === doc._id}
+                    onClick={() => analyzeDoc(doc._id)}
+                  >
+                    {analyzingDocId === doc._id ? "Analyzing..." : "Analyze"}
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+          {!loading && docs.length === 0 ? (
+            <p className="kb-muted">No documents uploaded yet.</p>
+          ) : null}
+        </div>
+      </aside>
+
+      <section className="kb-right">
+        {uiMessage ? (
+          <div className={`kb-message kb-message--${uiMessage.type}`}>
+            <span>{uiMessage.text}</span>
+            <button type="button" className="kb-message__close" onClick={clearUiMessage}>
+              ✕
+            </button>
+          </div>
+        ) : null}
+
+        <div className="kb-repo-box">
+          <label htmlFor="repoLink">GitHub Repository Link</label>
+          <div className="kb-link-row">
+            <input
+              id="repoLink"
+              type="text"
+              value={repoLinkInput}
+              onChange={(e) => setRepoLinkInput(e.target.value)}
+              placeholder="https://github.com/org/repo"
+              disabled={Boolean(savedRepoLink)}
+            />
+            {!savedRepoLink ? (
+              <button type="button" className="projects-btn" onClick={saveRepoLink} disabled={repoLoading}>
+                {repoLoading ? "Saving..." : "Save Repo"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="projects-btn projects-btn--secondary"
+                onClick={analyzeRepo}
+                disabled={repoLoading}
+              >
+                {repoLoading ? "Analyzing..." : "Analyze Repo"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="kb-repo-box">
+          <label htmlFor="patToken">GitHub PAT Token</label>
+          <div className="kb-link-row">
+            <input
+              id="patToken"
+              type="password"
+              value={patTokenInput}
+              onChange={(e) => setPatTokenInput(e.target.value)}
+              placeholder="ghp_xxx..."
+              disabled={Boolean(savedPatToken) && !isPatEditing}
+            />
+
+            {!savedPatToken || isPatEditing ? (
+              <button type="button" className="projects-btn" onClick={savePatToken} disabled={patLoading}>
+                {patLoading ? "Saving..." : savedPatToken ? "Update PAT" : "Save PAT"}
+              </button>
+            ) : (
+              <button type="button" className="projects-btn projects-btn--secondary" onClick={startEditPat}>
+                Edit PAT
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="kb-dropzone"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={onDrop}
+        >
+          <p>Drag and drop files here</p>
+          <p className="kb-muted">or</p>
+          <label className="projects-btn kb-upload-btn">
+            {uploading ? "Uploading..." : "Choose Files"}
+            <input type="file" multiple hidden onChange={(e) => uploadFiles(e.target.files)} />
+          </label>
+        </div>
+
+        {analyzePromptDoc ? (
+          <div className="kb-analyze-prompt-backdrop">
+            <div className="kb-analyze-prompt">
+              <p>
+                <strong>{analyzePromptDoc.fileName}</strong> uploaded. Analyze now?
+              </p>
+              <div className="kb-analyze-prompt__actions">
+                <button type="button" className="projects-btn" onClick={analyzePromptNow}>
+                  Analyze Now
+                </button>
+                <button type="button" className="projects-btn projects-btn--secondary" onClick={analyzePromptLater}>
+                  Later
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="kb-link-box">
+          <label htmlFor="docLink">Document link</label>
+          <div className="kb-link-row">
+            <input
+              id="docLink"
+              type="url"
+              value={docLink}
+              onChange={(e) => setDocLink(e.target.value)}
+              placeholder="https://example.com/doc"
+            />
+            <button type="button" className="projects-btn projects-btn--secondary" onClick={onSubmitDocLink}>
+              Fetch
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default KnowledgebasePanel;

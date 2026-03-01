@@ -1,0 +1,16 @@
+{
+  "name": "aidlc-gh",
+  "version": "1.0.0",
+  "description": "complete solution for AI-DLC Flow",
+  "main": "index.js",
+  "scripts": {
+    "start:server": "npm run server --prefix backend",
+    "start:client": "npm run start --prefix app",
+    "start": "concurrently \"npm run start:server\" \"npm run start:client\""
+  },
+  "author": "Subham Paul",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
