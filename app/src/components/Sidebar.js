@@ -31,9 +31,6 @@ const Sidebar = () => {
       </div>
 
       <div className="app-sidebar__bottom">
-        <p className="app-sidebar__user">
-          {user?.name || user?.username || "User"}
-        </p>
         <button
           type="button"
           className="app-sidebar__logout"

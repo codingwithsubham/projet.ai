@@ -6,7 +6,7 @@ import ChatPanel from "../../components/chat/ChatPanel";
 
 const ProjectDetails = () => {
   const navigate = useNavigate();
-  const { id, project, loading, error, tabs, activeTab, setActiveTab } =
+  const { id, project, loading, error, tabs, activeTab, setActiveTab, isChatFullView, setIsChatFullView } =
     useProjectDetails();
 
   return (
@@ -52,11 +52,26 @@ const ProjectDetails = () => {
 
       <div className="project-tab-content">
         {activeTab === "chat" ? (
-          <ChatPanel projectId={id} />
+          <div className="chat-wrapper">
+            <div className="chat-full-view" onClick={() => setIsChatFullView(!isChatFullView)}>⛶</div>
+            <ChatPanel projectId={id} />
+          </div>
         ) : (
           <KnowledgebasePanel projectId={id} />
         )}
       </div>
+
+      {
+        isChatFullView && activeTab === "chat" && (
+          <div className="chat-full-screen-overlay">
+            <div className="chat-header">
+              <h4>🚀 Pro-jet.ai</h4>
+              <div className="chat-full-view-close" onClick={() => setIsChatFullView(!isChatFullView)}>✖</div>
+            </div>
+            <ChatPanel projectId={id} />
+          </div>
+        )
+      }
     </section>
   );
 };

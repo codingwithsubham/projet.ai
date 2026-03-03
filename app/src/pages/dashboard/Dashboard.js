@@ -1,9 +1,15 @@
 import React from "react";
 import { useDashboard } from "../../hooks/useDashboard";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { summaryTiles, totalProjects, projectsLoading, projectsError, refreshProjects } =
     useDashboard();
+
+    const openProjectPage = (id) => {
+    navigate(`/projects/${id}`);
+  };
 
   return (
     <section className="dashboard-page">
@@ -34,7 +40,8 @@ const Dashboard = () => {
             key={tile.id}
             className={`project-tile ${tile.isEmpty ? "project-tile--empty" : ""}`}
           >
-            <h3 className="project-tile__title">{tile.name}</h3>
+            <h3 className="project-tile__title projects-link-btn" onClick={() => openProjectPage(tile.id)}>
+              {tile.name}</h3>
             <p className="project-tile__desc">{tile.description}</p>
 
             <div className="project-tile__meta">

@@ -5,11 +5,13 @@ const projectRoutes = require("./project.routes");
 const authRoutes = require("./auth.routes");
 const knowledgebaseRoutes = require("./knowledgebase.routes");
 const chatRoutes = require("./chat.routes");
+const kilocodeOpenAIRoutes = require("./kilocodeOpenAI.routes");
 
 // Register all routes here
 router.use("/projects", projectRoutes);
 router.use("/auth", authRoutes);
 router.use("/knowledgebase", knowledgebaseRoutes);
 router.use("/chats", chatRoutes);
+router.use("/openai-compatible/v1", kilocodeOpenAIRoutes);
 
 module.exports = router;

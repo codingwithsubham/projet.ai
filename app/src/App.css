@@ -805,7 +805,7 @@ span.app-navbar__icon {
 
 .project-details-title {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
   color: #111;
 }
 
@@ -819,6 +819,7 @@ span.app-navbar__icon {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+  align-items: center;
 }
 
 .project-tab {
@@ -866,7 +867,7 @@ button.projects-btn.icon-btn {
   display: flex;
   gap: 10px;
   justify-content: flex-start;
-  width: 70%;
+  width: 60%;
   flex-wrap: wrap;
 }
 
@@ -1093,8 +1094,7 @@ button.projects-btn.icon-btn {
 }
 
 .chat-stream {
-  min-height: 280px;
-  max-height: 55vh;
+  max-height: 50vh;
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -1207,3 +1207,47 @@ button.projects-btn.icon-btn {
   animation-delay: 0.3s;
 }
 
+.chat-full-view {
+  position: fixed;
+  right: 50px;
+  margin-top: 5px;
+  font-size: 25px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.chat-full-screen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background: #fff;
+  padding: 5px 20px 20px;
+}
+
+.chat-full-view-close {
+  color: red;
+  width: 100%;
+  text-align: right;
+  margin: 5px 0px;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.chat-full-screen-overlay .chat-stream {
+  max-height: 68vh !important;
+  min-height: 68vh !important;
+}
+
+.chat-full-screen-overlay .chat-header {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-full-screen-overlay .chat-header h4 {
+  width: 50%;
+  margin: 0 5px;
+}

@@ -81,3 +81,9 @@ code {
     opacity: 1;
   }
 }
+
+@media (max-width: 1280px) {
+.chat-stream {
+  max-height: 40vh;
+}
+}

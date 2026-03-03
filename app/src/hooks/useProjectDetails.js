@@ -10,6 +10,7 @@ export const useProjectDetails = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("chat");
+  const [isChatFullView, setIsChatFullView] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -32,8 +33,8 @@ export const useProjectDetails = () => {
 
   const tabs = useMemo(
     () => [
-      { key: "chat", label: "Chat" },
-      { key: "knowledgebase", label: "Knowledgebase" },
+      { key: "chat", label: "💭 Talk To Agent" },
+      { key: "knowledgebase", label: "📚 Knowledgebase" },
     ],
     []
   );
@@ -46,5 +47,7 @@ export const useProjectDetails = () => {
     tabs,
     activeTab,
     setActiveTab,
+    isChatFullView,
+    setIsChatFullView,
   };
 };
