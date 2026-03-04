@@ -6,6 +6,6 @@ const router = express.Router();
 router.get("/:projectId/sessions", chatController.sessions);
 router.post("/:projectId/sessions", chatController.createSession);
 router.get("/:projectId/history", chatController.history);
-router.post("/:projectId", chatController.chat);
+router.post("/:projectId", chatController.chatToPMAgent);
 
 module.exports = router;

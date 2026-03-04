@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const chatService = require("../services/chat.service");
 
-const chat = async (req, res) => {
+const chatToPMAgent = async (req, res) => {
   try {
     const { projectId } = req.params;
     const { message, sessionId } = req.body || {};
@@ -14,7 +14,7 @@ const chat = async (req, res) => {
       return res.status(400).json({ success: false, message: "message is required" });
     }
 
-    const data = await chatService.sendChatMessage({ projectId, message, sessionId });
+    const data = await chatService.sendChatMessageToPMAgent({ projectId, message, sessionId });
     if (!data) {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
@@ -94,4 +94,4 @@ const createSession = async (req, res) => {
   }
 };
 
-module.exports = { chat, history, sessions, createSession };
+module.exports = { chatToPMAgent, history, sessions, createSession };

@@ -15,6 +15,7 @@ export const useProjectChat = (projectId) => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
 
   const loadHistory = useCallback(async (sessionId) => {
     if (!projectId || !sessionId) return;
@@ -132,5 +133,7 @@ export const useProjectChat = (projectId) => {
     sendMessage,
     openSession,
     newChat,
+    showPromptLibrary,
+    setShowPromptLibrary,
   };
 };

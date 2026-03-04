@@ -87,7 +87,7 @@ const getOrCreateSession = async ({ projectId, sessionId }) => {
   });
 };
 
-const sendChatMessage = async ({ projectId, message, sessionId }) => {
+const sendChatMessageToPMAgent = async ({ projectId, message, sessionId }) => {
   const cleanMessage = String(message || "").trim();
   if (!cleanMessage) throw new Error("message is required");
 
@@ -104,6 +104,9 @@ const sendChatMessage = async ({ projectId, message, sessionId }) => {
     "Always answer in valid markdown.",
     "Use the provided RAG context as the primary source of truth.",
     "If context is insufficient, state assumptions clearly.",
+    "When the user asks for PM workflows or artifacts, prefer using available tools before free-form writing.",
+    "Use tools for: charter, sprint planning, RICE prioritization, estimation, risk register, dependency mapping, release checklist, stakeholder updates, meeting agendas, and retrospectives.",
+    "If multiple tools apply, use the minimum set needed and then synthesize a concise recommendation.",
   ].join(" ");
 
   const userPrompt = [
@@ -193,7 +196,7 @@ const createChatSession = async (projectId, title = "New Chat") => {
 };
 
 module.exports = {
-  sendChatMessage,
+  sendChatMessageToPMAgent,
   getChatHistory,
   getChatSessions,
   createChatSession,

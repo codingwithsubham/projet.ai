@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { useProjectChat } from "../../hooks/useProjectChat";
+import PromptLibrary from "./PromptLibrary";
 
 const ChatPanel = ({ projectId }) => {
   const streamRef = useRef(null);
@@ -20,6 +21,8 @@ const ChatPanel = ({ projectId }) => {
     sendMessage,
     openSession,
     newChat,
+    showPromptLibrary,
+    setShowPromptLibrary,
   } = useProjectChat(projectId);
 
   useEffect(() => {
@@ -107,8 +110,14 @@ const ChatPanel = ({ projectId }) => {
 
           <div ref={streamBottomRef} />
         </div>
-
+        {showPromptLibrary && <PromptLibrary onSelect={(prompt) => {
+          setInput(prompt);
+          setShowPromptLibrary(false);
+        }} />}
         <form className="chat-input-row" onSubmit={onSubmit}>
+          <button className="icon-btn" onClick={() => setShowPromptLibrary((v) => !v)}>
+           📖
+          </button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
