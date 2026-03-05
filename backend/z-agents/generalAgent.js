@@ -1,17 +1,15 @@
 const { createReactAgent } = require("@langchain/langgraph/prebuilt");
 const { llmAgent } = require("../openai");
-const { buildPmTools } = require("../tools/pmTools");
 const { createStoreHappyFeedbackTool } = require("../tools/commonTools");
 
-const dynamicPmAgent = async (project) => {
-  const tools = await buildPmTools(project);
+const dynamicGeneralAgent = async (project) => {
   const happyFeedbackTool = createStoreHappyFeedbackTool(project);
 
     const agent = createReactAgent({
       llm: llmAgent,
-      tools: [...tools, happyFeedbackTool],
+      tools: [happyFeedbackTool],
     });
     return agent;
 };
 
-module.exports = { dynamicPmAgent };
+module.exports = { dynamicGeneralAgent };

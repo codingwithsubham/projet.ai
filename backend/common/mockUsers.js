@@ -33,4 +33,27 @@ const mockUsers = [
   },
 ];
 
-module.exports = { mockUsers };
+const mockAPIKeys = [
+  {
+    key: "CPWjIETcutFPXWH",
+    role: "dev",
+    project: "69a2bc7286acace5e0d27e57"
+  },
+  {
+    key: "BPWjIETcutFPXMX",
+    role: "dev",
+    project: "69a2bc7286acace5e0d27e57"
+  },
+  {
+    key: "XMWjIETcutFPXTZ",
+    role: "dev",
+    project: "69a2bc7286acace5e0d27e57"
+  },
+  {
+    key: "ZQWjIETcutFPXED",
+    role: "dev",
+    project: "69a2bc7286acace5e0d27e57"
+  },
+];
+
+module.exports = { mockUsers, mockAPIKeys };

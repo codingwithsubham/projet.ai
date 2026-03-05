@@ -132,7 +132,7 @@ const streamToolCallResponse = ({ res, model, toolName, text }) => {
 };
 
 const listModels = async (_req, res) => {
-  return res.status(200).json(kilocodeOpenAIService.listModels());
+  return res.status(200).json(kilocodeOpenAIService.listModels(_req));
 };
 
 const createChatCompletion = async (req, res) => {
@@ -214,7 +214,7 @@ const createChatCompletion = async (req, res) => {
     }
 
     const completionId = `chatcmpl_${Date.now()}`;
-    const model = String(body.model || kilocodeOpenAIService.DEFAULT_MODEL_ID);
+    const model = String(body.model);
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");

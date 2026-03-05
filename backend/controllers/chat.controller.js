@@ -14,7 +14,7 @@ const chatToPMAgent = async (req, res) => {
       return res.status(400).json({ success: false, message: "message is required" });
     }
 
-    const data = await chatService.sendChatMessageToPMAgent({ projectId, message, sessionId });
+    const data = await chatService.sendChatMessageToDynamicAgent({ projectId, message, sessionId });
     if (!data) {
       return res.status(404).json({ success: false, message: "Project not found" });
     }

@@ -1,3 +1,5 @@
+const { mockAPIKeys } = require("../common/mockUsers");
+
 const requireKilocodeKey = (req, res, next) => {
   const headerKey = req.header("x-kilocode-key");
   const authHeader = req.header("authorization") || "";
@@ -6,22 +8,16 @@ const requireKilocodeKey = (req, res, next) => {
     : "";
 
   const provided = headerKey || bearerKey;
-  const expected = process.env.KILOCODE_API_KEY;
+  const expected = mockAPIKeys.find((k) => k.key === provided);
 
   if (!expected) {
-    return res.status(500).json({
-      success: false,
-      message: "KILOCODE_API_KEY is not configured",
-    });
-  }
-
-  if (!provided || provided !== expected) {
     return res.status(401).json({
       success: false,
-      message: "Unauthorized Kilocode request",
+      message: "Unauthorized Key request",
     });
   }
 
+  req.keyData = expected;
   return next();
 };
 

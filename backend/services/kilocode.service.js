@@ -1,7 +1,18 @@
 const chatService = require("./chat.service");
 
-const invokeAgentForKilocode = async ({ projectId, message, sessionId, meta }) => {
-  const data = await chatService.sendChatMessageToPMAgent({ projectId, message, sessionId });
+const invokeAgentForKilocode = async ({
+  projectId,
+  message,
+  sessionId,
+  agentType = "general",
+  meta,
+}) => {
+  const data = await chatService.sendChatMessageToDynamicAgent({
+    projectId,
+    message,
+    sessionId,
+    agentType
+  });
   if (!data) return null;
 
   return {

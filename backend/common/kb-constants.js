@@ -25,4 +25,19 @@ module.exports = {
     "resolved",
     "thank",
   ],
+  AFFIRMATIVE_INPUTS : new Set([
+  "yes",
+  "y",
+  "yeah",
+  "yep",
+  "sure",
+  "ok",
+  "okay",
+  "confirm",
+  "proceed",
+  "go ahead",
+  "please proceed",
+  "yes please",
+  "yes let's push it to github",
+])
 };

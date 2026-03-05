@@ -1,7 +1,5 @@
 const kilocodeService = require("./kilocode.service");
 
-const DEFAULT_MODEL_ID = "aidlc-pm-agent:69a2bc7286acace5e0d27e57";
-
 const toText = (content) => {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
@@ -23,7 +21,8 @@ const toText = (content) => {
 };
 
 const resolveProjectId = ({ body, model }) => {
-  const fromBody = body?.projectId || body?.metadata?.projectId || body?.meta?.projectId;
+  const fromBody =
+    body?.projectId || body?.metadata?.projectId || body?.meta?.projectId;
   if (fromBody) return String(fromBody).trim();
 
   const modelText = String(model || "").trim();
@@ -37,7 +36,7 @@ const resolveProjectId = ({ body, model }) => {
 
 const resolveModelId = (model) => {
   const value = String(model || "").trim();
-  return value || DEFAULT_MODEL_ID;
+  return value;
 };
 
 const stripEnvironmentDetails = (text) => {
@@ -69,7 +68,9 @@ const normalizeKiloUserPrompt = (rawText) => {
 
 const extractFeedbackTagContent = (text) => {
   const source = String(text || "");
-  const matches = Array.from(source.matchAll(/<feedback>([\s\S]*?)<\/feedback>/gi));
+  const matches = Array.from(
+    source.matchAll(/<feedback>([\s\S]*?)<\/feedback>/gi),
+  );
   if (!matches.length) return "";
 
   const last = matches[matches.length - 1];
@@ -77,7 +78,9 @@ const extractFeedbackTagContent = (text) => {
 };
 
 const isLowSignalText = (text) => {
-  const clean = String(text || "").trim().toLowerCase();
+  const clean = String(text || "")
+    .trim()
+    .toLowerCase();
   if (!clean) return true;
 
   const lowSignal = ["ok", "okay", "k", "thanks", "thank you", "done"];
@@ -88,7 +91,9 @@ const extractUserMessage = (messages = []) => {
   if (!Array.isArray(messages)) return "";
 
   const isInternalLoopPrompt = (text) => {
-    const clean = String(text || "").trim().toLowerCase();
+    const clean = String(text || "")
+      .trim()
+      .toLowerCase();
     return (
       clean.startsWith("[error] you did not use a tool") ||
       clean.includes("did not use a tool in your previous response")
@@ -141,15 +146,16 @@ const buildNonStreamResponse = ({ model, text }) => ({
   ],
 });
 
-const listModels = () => {
+const resolveAgentType = (model) => {
+  return model.split("-")[1] || "general";
+};
+
+const listModels = (_req) => {
   const created = Math.floor(Date.now() / 1000);
-  const configured = process.env.KILOCODE_OPENAI_MODEL_IDS;
-  const modelIds = configured
-    ? configured
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [DEFAULT_MODEL_ID];
+  const agentType = _req?.keyData?.role || "default";
+  const modelKey = _req?.keyData?.project || "default";
+  const model = `aidlc-${agentType}-agent:${modelKey}`;
+  const modelIds = [model];
 
   return {
     object: "list",
@@ -165,13 +171,15 @@ const listModels = () => {
 const invokeCompletion = async ({ body }) => {
   const model = resolveModelId(body?.model);
   const projectId = resolveProjectId({ body, model });
+  const agentType = resolveAgentType(model);
   const userMessage = extractUserMessage(body?.messages);
-  const sessionId = body?.metadata?.sessionId || body?.meta?.sessionId || body?.sessionId;
+  const sessionId = "";
 
   const result = await kilocodeService.invokeAgentForKilocode({
     projectId,
     message: userMessage,
     sessionId,
+    agentType,
     meta: {
       source: "kilocode-openai-compatible",
       requestModel: model,
@@ -185,20 +193,25 @@ const invokeCompletion = async ({ body }) => {
     sessionId,
     userMessage,
     result,
-    response: result ? buildNonStreamResponse({ model, text: result.response }) : null,
+    agentType,
+    response: result
+      ? buildNonStreamResponse({ model, text: result.response })
+      : null,
   };
 };
 
 const streamCompletion = async ({ body, onStart, onToken, onDone }) => {
   const model = resolveModelId(body?.model);
   const projectId = resolveProjectId({ body, model });
+  const agentType = resolveAgentType(model);
   const userMessage = extractUserMessage(body?.messages);
-  const sessionId = body?.metadata?.sessionId || body?.meta?.sessionId || body?.sessionId;
+  const sessionId = "";
 
   const result = await kilocodeService.streamAgentForKilocode({
     projectId,
     message: userMessage,
     sessionId,
+    agentType,
     meta: {
       source: "kilocode-openai-compatible",
       requestModel: model,
@@ -212,6 +225,7 @@ const streamCompletion = async ({ body, onStart, onToken, onDone }) => {
   return {
     model,
     projectId,
+    agentType,
     sessionId,
     userMessage,
     result,
@@ -219,8 +233,8 @@ const streamCompletion = async ({ body, onStart, onToken, onDone }) => {
 };
 
 module.exports = {
-  DEFAULT_MODEL_ID,
   resolveProjectId,
+  resolveAgentType,
   extractUserMessage,
   listModels,
   invokeCompletion,

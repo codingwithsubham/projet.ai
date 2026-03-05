@@ -1,28 +1,14 @@
 const ChatSession = require("../models/ChatSessionModel");
 const projectService = require("./project.service");
 const { queryVectors } = require("../helpers/embaddingHelpers");
-const { dynamicPmAgent } = require("../z-agents/pmAgent");
 const { agentParser } = require("../openai");
 const { PM_SYSTEM_PROMPT, SYSTEM_RULES } = require("../common/ai-constants");
+const { createDynamicAgent } = require("../z-agents");
+const { AFFIRMATIVE_INPUTS } = require("../common/kb-constants");
 
 const MAX_CONTEXT_CHUNKS = 6;
 const MAX_CONTEXT_CHARS = 9000;
 const MAX_PREVIOUS_CONVERSATIONS = 3;
-const AFFIRMATIVE_INPUTS = new Set([
-  "yes",
-  "y",
-  "yeah",
-  "yep",
-  "sure",
-  "ok",
-  "okay",
-  "confirm",
-  "proceed",
-  "go ahead",
-  "please proceed",
-  "yes please",
-  "yes let's push it to github",
-]);
 
 // Utility function to convert various content formats to plain text for consistent processing
 const toText = (content) => {
@@ -195,7 +181,7 @@ const getOrCreateSession = async ({ projectId, sessionId }) => {
 };
 
 // Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
-const sendChatMessageToPMAgent = async ({ projectId, message, sessionId }) => {
+const sendChatMessageToDynamicAgent = async ({ projectId, message, sessionId, agentType = "general" }) => {
   const cleanMessage = String(message || "").trim();
   if (!cleanMessage) throw new Error("message is required");
 
@@ -229,7 +215,7 @@ const sendChatMessageToPMAgent = async ({ projectId, message, sessionId }) => {
     executionDirective,
   ].join("\n");
 
-  const agent = await dynamicPmAgent(project, "PM");
+  const agent = await createDynamicAgent(project, agentType);
   const result = await agent.invoke({
     messages: [
       { role: "system", content: systemPrompt },
@@ -311,7 +297,7 @@ const createChatSession = async (projectId, title = "New Chat") => {
 };
 
 module.exports = {
-  sendChatMessageToPMAgent,
+  sendChatMessageToDynamicAgent,
   getChatHistory,
   getChatSessions,
   createChatSession,
