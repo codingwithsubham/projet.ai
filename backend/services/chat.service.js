@@ -1,13 +1,30 @@
-const ChatHistory = require("../models/ChatHistoryModel");
 const ChatSession = require("../models/ChatSessionModel");
 const projectService = require("./project.service");
 const { queryVectors } = require("../helpers/embaddingHelpers");
-const { pmAgent } = require("../z-agents/pmAgent");
+const { dynamicPmAgent } = require("../z-agents/pmAgent");
 const { agentParser } = require("../openai");
+const { PM_SYSTEM_PROMPT, SYSTEM_RULES } = require("../common/ai-constants");
 
 const MAX_CONTEXT_CHUNKS = 6;
 const MAX_CONTEXT_CHARS = 9000;
+const MAX_PREVIOUS_CONVERSATIONS = 3;
+const AFFIRMATIVE_INPUTS = new Set([
+  "yes",
+  "y",
+  "yeah",
+  "yep",
+  "sure",
+  "ok",
+  "okay",
+  "confirm",
+  "proceed",
+  "go ahead",
+  "please proceed",
+  "yes please",
+  "yes let's push it to github",
+]);
 
+// Utility function to convert various content formats to plain text for consistent processing
 const toText = (content) => {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
@@ -23,24 +40,22 @@ const toText = (content) => {
   return String(content || "");
 };
 
-/**
- * Build RAG context by querying Pinecone for relevant chunks
- */
+// Build the RAG context by querying Pinecone with the user's question and retrieving relevant chunks of information
 const buildRagContext = async (project, query) => {
   console.log(`\n🔍 Building RAG context...`);
-  
+
   try {
     const results = await queryVectors({
       projectId: String(project._id),
       query,
       topK: MAX_CONTEXT_CHUNKS,
     });
-    
+
     if (!results.length) {
       console.log("⚠️ No RAG context found");
       return "";
     }
-    
+
     const context = results
       .map((result, i) => {
         const source = result.metadata?.source || "unknown";
@@ -49,8 +64,10 @@ const buildRagContext = async (project, query) => {
       })
       .join("\n\n")
       .slice(0, MAX_CONTEXT_CHARS);
-    
-    console.log(`✅ RAG context: ${context.length} chars from ${results.length} chunks`);
+
+    console.log(
+      `✅ RAG context: ${context.length} chars from ${results.length} chunks`,
+    );
     return context;
   } catch (err) {
     console.error("❌ RAG context error:", err.message);
@@ -58,6 +75,95 @@ const buildRagContext = async (project, query) => {
   }
 };
 
+// Build the user message by combining the RAG context and the user's question
+const buildUserMessage = (ragContext, userQuestion) => {
+  return [
+    "Found Context:",
+    ragContext || "No relevant context found.",
+    "",
+    "User Question:",
+    userQuestion,
+  ].join("\n");
+};
+
+const normalizeInput = (text = "") =>
+  String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const isAffirmativeMessage = (text = "") => {
+  const normalized = normalizeInput(text);
+  if (!normalized) return false;
+  if (AFFIRMATIVE_INPUTS.has(normalized)) return true;
+
+  return /^(yes|ok|okay|sure|confirm|proceed)(\b|\s)/i.test(normalized);
+};
+
+const didAssistantAskForConfirmation = (messages = []) => {
+  if (!Array.isArray(messages) || !messages.length) return false;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "assistant") continue;
+
+    const content = normalizeInput(message?.content);
+    if (!content) continue;
+
+    return (
+      content.includes("confirm") ||
+      content.includes("proceed") ||
+      content.includes("would you like") ||
+      content.includes("shall i") ||
+      content.includes("before pushing") ||
+      content.includes("before proceeding")
+    );
+  }
+
+  return false;
+};
+
+const buildExecutionDirective = ({
+  recentChatMessages,
+  currentUserMessage,
+}) => {
+  const hasConfirmationRequest =
+    didAssistantAskForConfirmation(recentChatMessages);
+  const userConfirmed = isAffirmativeMessage(currentUserMessage);
+
+  if (hasConfirmationRequest && userConfirmed) {
+    return [
+      "Execution Directive:",
+      "User has already provided confirmation for the pending action.",
+      "Do NOT ask for confirmation again.",
+      "Proceed to perform the action now, then share outcome and ask for feedback.",
+    ].join("\n");
+  }
+
+  return [
+    "Execution Directive:",
+    "If action is needed and user has not yet confirmed, ask for confirmation first.",
+  ].join("\n");
+};
+
+// Pull the recent user-assistant conversations to maintain context and continuity in the PM agent's responses
+const buildRecentChatMessages = (
+  chats = [],
+  maxConversations = MAX_PREVIOUS_CONVERSATIONS,
+) => {
+  if (!Array.isArray(chats) || maxConversations <= 0) return [];
+
+  return chats
+    .filter((chat) => chat?.role === "user" || chat?.role === "assistant")
+    .slice(-maxConversations * 2)
+    .map((chat) => ({
+      role: chat.role,
+      content: toText(chat.content),
+    }))
+    .filter((chat) => chat.content);
+};
+
+// Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
 const buildSessionTitle = (text = "") => {
   const clean = String(text || "")
     .trim()
@@ -66,6 +172,7 @@ const buildSessionTitle = (text = "") => {
   return clean.length > 60 ? `${clean.slice(0, 60)}...` : clean;
 };
 
+// Determine if the user feedback is low signal (e.g., too short, vague, or neutral) and should be skipped for storage
 const getOrCreateSession = async ({ projectId, sessionId }) => {
   if (sessionId) {
     const existing = await ChatSession.findOne({
@@ -87,6 +194,7 @@ const getOrCreateSession = async ({ projectId, sessionId }) => {
   });
 };
 
+// Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
 const sendChatMessageToPMAgent = async ({ projectId, message, sessionId }) => {
   const cleanMessage = String(message || "").trim();
   if (!cleanMessage) throw new Error("message is required");
@@ -95,40 +203,44 @@ const sendChatMessageToPMAgent = async ({ projectId, message, sessionId }) => {
   if (!project) return null;
 
   const session = await getOrCreateSession({ projectId, sessionId });
-  
+  const recentChatMessages = buildRecentChatMessages(
+    session?.chats,
+    MAX_PREVIOUS_CONVERSATIONS,
+  );
+  const executionDirective = buildExecutionDirective({
+    recentChatMessages,
+    currentUserMessage: cleanMessage,
+  });
+
   // Build RAG context from Pinecone
   const ragContext = await buildRagContext(project, cleanMessage);
 
   const systemPrompt = [
-    "You are a senior PM AI agent.",
-    "Always answer in valid markdown.",
-    "Use the provided RAG context as the primary source of truth.",
-    "If context is insufficient, state assumptions clearly.",
-    "When the user asks for PM workflows or artifacts, prefer using available tools before free-form writing.",
-    "Use tools for: charter, sprint planning, RICE prioritization, estimation, risk register, dependency mapping, release checklist, stakeholder updates, meeting agendas, and retrospectives.",
-    "If multiple tools apply, use the minimum set needed and then synthesize a concise recommendation.",
+    ...PM_SYSTEM_PROMPT,
+    `- Project Name: ${project.name || "Untitled Project"}`,
+    `- Repository: ${project.repolink || "No repository URL."}`,
+    "System Rules:",
+    ...SYSTEM_RULES,
   ].join(" ");
 
   const userPrompt = [
-    `Project: ${project.name || "Untitled Project"}`,
+    buildUserMessage(ragContext, cleanMessage),
     "",
-    "RAG Context:",
-    ragContext || "No relevant context found.",
-    "",
-    "User Question:",
-    cleanMessage,
+    executionDirective,
   ].join("\n");
 
-  const result = await pmAgent.invoke({
+  const agent = await dynamicPmAgent(project, "PM");
+  const result = await agent.invoke({
     messages: [
       { role: "system", content: systemPrompt },
+      ...recentChatMessages,
       { role: "user", content: userPrompt },
     ],
   });
 
   const parsed = agentParser(result);
   const assistantText = toText(
-    parsed || result?.output || result?.content || "No response generated."
+    parsed || result?.output || result?.content || "No response generated.",
   );
 
   session.chats.push({ role: "user", content: cleanMessage });
@@ -148,6 +260,7 @@ const sendChatMessageToPMAgent = async ({ projectId, message, sessionId }) => {
   };
 };
 
+// Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
 const getChatHistory = async (projectId, sessionId) => {
   let session = null;
 
@@ -169,6 +282,7 @@ const getChatHistory = async (projectId, sessionId) => {
   };
 };
 
+// Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
 const getChatSessions = async (projectId) => {
   const sessions = await ChatSession.find({ project_id: projectId })
     .sort({ updatedAt: -1 })
@@ -181,6 +295,7 @@ const getChatSessions = async (projectId) => {
   }));
 };
 
+// Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
 const createChatSession = async (projectId, title = "New Chat") => {
   const session = await ChatSession.create({
     project_id: projectId,

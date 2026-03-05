@@ -1291,3 +1291,7 @@ button.icon-btn {
   bottom: 18%;
   width: 50%;
 }
+
+.chat-full-screen-overlay .chat-history__list {
+  max-height: 80vh;
+}

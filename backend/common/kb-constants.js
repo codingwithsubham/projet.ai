@@ -1,0 +1,28 @@
+module.exports = {
+  FEEDBACK_SCOPE: "feedback",
+  LOW_SIGNAL_FEEDBACK: new Set([
+    "ok",
+    "okay",
+    "k",
+    "kk",
+    "thanks",
+    "thank you",
+    "thx",
+    "done",
+    "noted",
+  ]),
+  HAPPY_KEYWORDS: [
+    "great",
+    "awesome",
+    "perfect",
+    "excellent",
+    "helpful",
+    "good",
+    "nice",
+    "love",
+    "works",
+    "working",
+    "resolved",
+    "thank",
+  ],
+};

@@ -37,6 +37,13 @@ const ChatPanel = ({ projectId }) => {
     await sendMessage();
   };
 
+  const onTextareaKeyDown = async (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      await sendMessage();
+    }
+  };
+
   return (
     <div className={`chat-layout ${historyOpen ? "chat-layout--open" : ""}`}>
       <aside className={`chat-history ${historyOpen ? "is-open" : ""}`}>
@@ -115,12 +122,13 @@ const ChatPanel = ({ projectId }) => {
           setShowPromptLibrary(false);
         }} />}
         <form className="chat-input-row" onSubmit={onSubmit}>
-          <button className="icon-btn" onClick={() => setShowPromptLibrary((v) => !v)}>
+          <button type="button" className="icon-btn" onClick={() => setShowPromptLibrary((v) => !v)}>
            📖
           </button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onTextareaKeyDown}
             placeholder="Ask the PM agent..."
             rows={3}
           />
