@@ -1,11 +1,18 @@
-import axios from "axios";
-
-const API_BASE = process.env.REACT_APP_API_URL || "";
+import apiClient from "./apiClient";
 
 export const loginApi = async ({ username, password }) => {
-  const response = await axios.post(`${API_BASE}/api/v1/auth/login`, {
-    username,
-    password,
-  });
+  const response = await apiClient.post(
+    "/auth/login",
+    {
+      username,
+      password,
+    },
+    { skipAuth: true }
+  );
+  return response.data;
+};
+
+export const verifyTokenApi = async () => {
+  const response = await apiClient.post("/auth/verify");
   return response.data;
 };

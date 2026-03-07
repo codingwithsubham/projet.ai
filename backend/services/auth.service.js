@@ -1,5 +1,5 @@
 const { mockUsers } = require("../common/mockUsers");
-const { createAuthToken } = require("../helpers/tokenHelper");
+const { createAuthToken, verifyAuthToken } = require("../helpers/tokenHelper");
 
 const sanitizeUser = (user) => {
   const { password, ...safeUser } = user;
@@ -27,4 +27,17 @@ const login = async ({ username, email, password }) => {
   return { token, user: safeUser };
 };
 
-module.exports = { login };
+const verifyToken = async (token) => {
+  const payload = verifyAuthToken(token);
+  if (!payload) return null;
+
+  const user = mockUsers.find((candidate) => candidate.id === payload.sub);
+  if (!user) return null;
+
+  return {
+    payload,
+    user: sanitizeUser(user),
+  };
+};
+
+module.exports = { login, verifyToken };
