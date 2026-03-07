@@ -8,8 +8,13 @@ const ChatMessageSchema = new mongoose.Schema(
       required: true,
     },
     content: { type: String, required: true },
+    agent_type: {
+      type: String,
+      enum: ["general", "dev", "PM", "QA", "BA", "UX", "Ops"],
+      default: "general",
+    },
   },
-  { timestamps: true, _id: true }
+  { timestamps: true, _id: true },
 );
 
 const ChatSessionSchema = new mongoose.Schema(
@@ -34,7 +39,7 @@ const ChatSessionSchema = new mongoose.Schema(
   {
     timestamps: true,
     collection: "chat_sessions",
-  }
+  },
 );
 
 module.exports = mongoose.model("ChatSession", ChatSessionSchema);

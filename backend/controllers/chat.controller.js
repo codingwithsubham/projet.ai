@@ -14,7 +14,7 @@ const chatToPMAgent = async (req, res) => {
       return res.status(400).json({ success: false, message: "message is required" });
     }
 
-    const data = await chatService.sendChatMessageToDynamicAgent({ projectId, message, sessionId });
+    const data = await chatService.sendChatMessageToDynamicAgent({ projectId, message, sessionId, agentType: "PM" });
     if (!data) {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
@@ -77,13 +77,13 @@ const sessions = async (req, res) => {
 const createSession = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { title } = req.body || {};
+    const { title, agentType } = req.body || {};
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    const data = await chatService.createChatSession(projectId, title || "New Chat");
+    const data = await chatService.createChatSession(projectId, title || "New Chat", agentType || "general");
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({
