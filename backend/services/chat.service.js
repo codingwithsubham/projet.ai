@@ -2,7 +2,11 @@ const ChatSession = require("../models/ChatSessionModel");
 const projectService = require("./project.service");
 const { queryVectors } = require("../helpers/embaddingHelpers");
 const { agentParser } = require("../openai");
-const { PM_SYSTEM_PROMPT, SYSTEM_RULES } = require("../common/ai-constants");
+const {
+  PM_SYSTEM_PROMPT,
+  DEV_SYSTEM_PROMPT,
+  SYSTEM_RULES,
+} = require("../common/ai-constants");
 const { createDynamicAgent } = require("../z-agents");
 const { AFFIRMATIVE_INPUTS } = require("../common/kb-constants");
 
@@ -201,13 +205,26 @@ const sendChatMessageToDynamicAgent = async ({ projectId, message, sessionId, ag
   // Build RAG context from Pinecone
   const ragContext = await buildRagContext(project, cleanMessage);
 
-  const systemPrompt = [
-    ...PM_SYSTEM_PROMPT,
+  const promptByAgentType = {
+    PM: PM_SYSTEM_PROMPT,
+    dev: DEV_SYSTEM_PROMPT,
+    general: PM_SYSTEM_PROMPT,
+  };
+
+  const selectedPrompt =
+    promptByAgentType[agentType] || promptByAgentType.general;
+
+  const systemPromptParts = [
+    ...selectedPrompt,
     `- Project Name: ${project.name || "Untitled Project"}`,
     `- Repository: ${project.repolink || "No repository URL."}`,
-    "System Rules:",
-    ...SYSTEM_RULES,
-  ].join(" ");
+  ];
+
+  if (agentType === "PM") {
+    systemPromptParts.push("System Rules:", ...SYSTEM_RULES);
+  }
+
+  const systemPrompt = systemPromptParts.join(" ");
 
   const userPrompt = [
     buildUserMessage(ragContext, cleanMessage),
