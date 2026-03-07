@@ -1,10 +1,10 @@
 import React from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { clearAuthSession, getAuthUser } from "../services/auth.storage";
+import { NavLink } from "react-router-dom";
+import { getAuthUser } from "../services/auth.storage";
 
 const Navbar = () => {
-  const navigate = useNavigate();
   const user = getAuthUser();
+  const isAdmin = String(user?.role || "") === "admin";
 
   return (
     <header className="app-navbar">
@@ -17,6 +17,11 @@ const Navbar = () => {
         <NavLink to="/projects" className="app-navbar__link">
           Projects
         </NavLink>
+        {isAdmin ? (
+          <NavLink to="/users" className="app-navbar__link">
+            Users
+          </NavLink>
+        ) : null}
         <NavLink to="/settings" className="app-navbar__link">
           Settings
         </NavLink>
@@ -24,6 +29,7 @@ const Navbar = () => {
 
       <div className="app-navbar__right">
         <span className="app-navbar__user">{user?.name || user?.username}</span>
+        <span className="app-navbar__icon role">{user?.role}</span>
         <span className="app-navbar__icon">🤖</span>
       </div>
     </header>

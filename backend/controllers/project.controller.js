@@ -18,9 +18,9 @@ const createProject = async (req, res) => {
   }
 };
 
-const getAllProjects = async (_req, res) => {
+const getAllProjects = async (req, res) => {
   try {
-    const projects = await projectService.getAllProjects();
+    const projects = await projectService.getAllProjects(req.user);
     return res.status(200).json({
       success: true,
       data: projects,
@@ -41,7 +41,7 @@ const getProjectById = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    const project = await projectService.getProjectById(id);
+    const project = await projectService.getProjectById(id, req.user);
     if (!project) {
       return res.status(404).json({ success: false, message: "Project not found" });
     }

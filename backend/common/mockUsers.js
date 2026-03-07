@@ -1,10 +1,18 @@
 const mockUsers = [
   {
+    id: "u0",
+    username: "admin",
+    email: "admin@aidlc.dev",
+    password: "admin123",
+    role: "admin",
+    name: "Portal Admin",
+  },
+  {
     id: "u1",
     username: "subham",
     email: "subham@aidlc.dev",
     password: "subham123",
-    role: "admin",
+    role: "PM",
     name: "Subham Paul",
   },
   {
@@ -12,7 +20,7 @@ const mockUsers = [
     username: "ananya",
     email: "ananya@aidlc.dev",
     password: "ananya123",
-    role: "user",
+    role: "dev",
     name: "Ananya Sen",
   },
   {
@@ -20,7 +28,7 @@ const mockUsers = [
     username: "rahul",
     email: "rahul@aidlc.dev",
     password: "rahul123",
-    role: "user",
+    role: "QA",
     name: "Rahul Dutta",
   },
   {
@@ -28,32 +36,9 @@ const mockUsers = [
     username: "meera",
     email: "meera@aidlc.dev",
     password: "meera123",
-    role: "user",
+    role: "BA",
     name: "Meera Roy",
   },
 ];
 
-const mockAPIKeys = [
-  {
-    key: "CPWjIETcutFPXWH",
-    role: "dev",
-    project: "69a2bc7286acace5e0d27e57"
-  },
-  {
-    key: "BPWjIETcutFPXMX",
-    role: "dev",
-    project: "69a2bc7286acace5e0d27e57"
-  },
-  {
-    key: "XMWjIETcutFPXTZ",
-    role: "dev",
-    project: "69a2bc7286acace5e0d27e57"
-  },
-  {
-    key: "ZQWjIETcutFPXED",
-    role: "dev",
-    project: "69a2bc7286acace5e0d27e57"
-  },
-];
-
-module.exports = { mockUsers, mockAPIKeys };
+module.exports = { mockUsers };

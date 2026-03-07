@@ -23,6 +23,7 @@ const Projects = () => {
     projectsLoading,
     projectsError,
     actionLoading,
+    isAdmin,
     modal,
     formData,
     formErrors,
@@ -51,9 +52,11 @@ const Projects = () => {
           <button type="button" className="projects-btn projects-btn--secondary" onClick={refreshProjects}>
             Refresh
           </button>
-          <button type="button" className="projects-btn" onClick={openAddModal}>
-            📜 Add Project
-          </button>
+          {isAdmin ? (
+            <button type="button" className="projects-btn" onClick={openAddModal}>
+              📜 Add Project
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -106,21 +109,25 @@ const Projects = () => {
                       >
                         👁️
                       </button>
-                      <button
-                        type="button"
-                        className="projects-btn projects-btn--tiny"
-                        onClick={() => openEditModal(project._id)}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        className="projects-btn projects-btn--tiny projects-btn--danger"
-                        onClick={() => removeProject(project._id)}
-                        disabled={actionLoading}
-                      >
-                        🗑️
-                      </button>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          className="projects-btn projects-btn--tiny"
+                          onClick={() => openEditModal(project._id)}
+                        >
+                          ⚙️
+                        </button>
+                      ) : null}
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          className="projects-btn projects-btn--tiny projects-btn--danger"
+                          onClick={() => removeProject(project._id)}
+                          disabled={actionLoading}
+                        >
+                          🗑️
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -130,7 +137,7 @@ const Projects = () => {
         </table>
       </div>
 
-      {modal.open && (
+      {isAdmin && modal.open && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal-wrapper">
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>

@@ -153,11 +153,20 @@ const buildSessionTitle = (text = "") => {
   return clean.length > 60 ? `${clean.slice(0, 60)}...` : clean;
 };
 
-const getOrCreateSession = async ({ projectId, sessionId, agentType }) => {
+const getOrCreateSession = async ({
+  projectId,
+  sessionId,
+  agentType,
+  userId,
+  isAdmin = false,
+}) => {
+  const userScopedQuery = !isAdmin && userId ? { user_id: userId } : {};
+
   if (sessionId) {
     const existing = await ChatSession.findOne({
       _id: sessionId,
       project_id: projectId,
+      ...userScopedQuery,
     });
     if (existing) return existing;
   }
@@ -167,6 +176,7 @@ const getOrCreateSession = async ({ projectId, sessionId, agentType }) => {
     const existingDevSession = await ChatSession.findOne({
       project_id: projectId,
       agent_type: "dev",
+      ...userScopedQuery,
     });
     if (existingDevSession) return existingDevSession;
 
@@ -175,6 +185,7 @@ const getOrCreateSession = async ({ projectId, sessionId, agentType }) => {
       title: "[Dev] Agent Session",
       chats: [],
       agent_type: "dev",
+      ...(userId ? { user_id: userId } : {}),
     });
     return newDevSession;
   }
@@ -184,6 +195,7 @@ const getOrCreateSession = async ({ projectId, sessionId, agentType }) => {
     title: `[${agentType}] New Chat`,
     chats: [],
     agent_type: agentType,
+    ...(userId ? { user_id: userId } : {}),
   });
 };
 

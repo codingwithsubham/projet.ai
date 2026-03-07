@@ -1,4 +1,4 @@
-const { mockAPIKeys } = require("../common/mockUsers");
+const { getActiveApiKeyFromCache } = require("../services/apiKeyCache.service");
 
 const authenticateMcpRequest = (req, res, next) => {
   try {
@@ -13,7 +13,7 @@ const authenticateMcpRequest = (req, res, next) => {
       });
     }
 
-    const keyEntry = mockAPIKeys.find((entry) => entry.key === apiKey);
+    const keyEntry = getActiveApiKeyFromCache(apiKey);
 
     if (!keyEntry) {
       return res.status(401).json({
@@ -24,8 +24,10 @@ const authenticateMcpRequest = (req, res, next) => {
 
     // Attach resolved project and role to the request
     req.mcpAuth = {
-      projectId: keyEntry.project,
+      projectId: keyEntry.projectId,
       role: keyEntry.role,
+      apiKeyId: keyEntry.id,
+      apiKeyName: keyEntry.name,
     };
 
     return next();

@@ -1,23 +1,42 @@
 const { mockUsers } = require("../common/mockUsers");
+const User = require("../models/UserModel");
 const { createAuthToken, verifyAuthToken } = require("../helpers/tokenHelper");
 
 const sanitizeUser = (user) => {
-  const { password, ...safeUser } = user;
+  const normalized = typeof user.toObject === "function" ? user.toObject() : user;
+  const { password, ...safeUser } = normalized;
   return safeUser;
 };
 
-const findUserByIdentifier = (identifier) => {
+const findUserByIdentifier = async (identifier) => {
   const normalized = String(identifier || "").trim().toLowerCase();
-  return mockUsers.find(
-    (u) =>
-      u.username.toLowerCase() === normalized ||
-      u.email.toLowerCase() === normalized
-  );
+
+  if (!normalized) return null;
+
+  return await User.findOne({
+    $or: [{ username: normalized }, { email: normalized }],
+  });
+};
+
+const bootstrapUsers = async () => {
+  const userCount = await User.estimatedDocumentCount();
+  if (userCount > 0) return;
+
+  const initialUsers = mockUsers.map((user) => ({
+    username: String(user.username || "").trim().toLowerCase(),
+    email: String(user.email || "").trim().toLowerCase(),
+    password: user.password,
+    role: user.role,
+    name: user.name,
+    projects: [],
+  }));
+
+  await User.insertMany(initialUsers);
 };
 
 const login = async ({ username, email, password }) => {
   const identifier = username || email;
-  const user = findUserByIdentifier(identifier);
+  const user = await findUserByIdentifier(identifier);
 
   if (!user || user.password !== password) return null;
 
@@ -31,7 +50,7 @@ const verifyToken = async (token) => {
   const payload = verifyAuthToken(token);
   if (!payload) return null;
 
-  const user = mockUsers.find((candidate) => candidate.id === payload.sub);
+  const user = await User.findById(payload.sub);
   if (!user) return null;
 
   return {
@@ -40,4 +59,4 @@ const verifyToken = async (token) => {
   };
 };
 
-module.exports = { login, verifyToken };
+module.exports = { login, verifyToken, bootstrapUsers };

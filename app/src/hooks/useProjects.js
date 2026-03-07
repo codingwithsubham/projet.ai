@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppData } from "../context/AppDataContext";
+import { getAuthUser } from "../services/auth.storage";
 
 const initialForm = {
   name: "",
@@ -22,6 +23,9 @@ const mapProjectToForm = (project) => ({
 });
 
 export const useProjects = () => {
+  const currentUser = getAuthUser();
+  const isAdmin = String(currentUser?.role || "") === "admin";
+
   const {
     projects,
     projectsLoading,
@@ -60,12 +64,14 @@ export const useProjects = () => {
   }, []);
 
   const openAddModal = useCallback(() => {
+    if (!isAdmin) return;
     setModal({ open: true, mode: "add", projectId: null });
     setFormData(initialForm);
     setFormErrors({});
-  }, []);
+  }, [isAdmin]);
 
   const openEditModal = useCallback(async (id) => {
+    if (!isAdmin) return;
     setActionLoading(true);
     const res = await getProjectById(id);
     setActionLoading(false);
@@ -73,7 +79,7 @@ export const useProjects = () => {
     if (!res.ok) return;
     setFormData(mapProjectToForm(res.data));
     setModal({ open: true, mode: "edit", projectId: id });
-  }, [getProjectById]);
+  }, [getProjectById, isAdmin]);
 
   const handleFormChange = useCallback((e) => {
     const { name, value, checked, type } = e.target;
@@ -86,6 +92,8 @@ export const useProjects = () => {
 
   const submitProject = useCallback(async (e) => {
     e.preventDefault();
+    if (!isAdmin) return { ok: false, error: "Only admin can modify projects" };
+
     const errors = validate(formData);
 
     if (Object.keys(errors).length) {
@@ -109,9 +117,11 @@ export const useProjects = () => {
 
     closeModal();
     return result;
-  }, [closeModal, createProject, formData, modal.mode, modal.projectId, updateProjectById, validate]);
+  }, [closeModal, createProject, formData, isAdmin, modal.mode, modal.projectId, updateProjectById, validate]);
 
   const removeProject = useCallback(async (id) => {
+    if (!isAdmin) return { ok: false, error: "Only admin can delete projects" };
+
     const approved = window.confirm("Delete this project?");
     if (!approved) return { ok: false };
 
@@ -119,7 +129,7 @@ export const useProjects = () => {
     const result = await deleteProjectById(id);
     setActionLoading(false);
     return result;
-  }, [deleteProjectById]);
+  }, [deleteProjectById, isAdmin]);
 
   return {
     tableProjects,
@@ -129,6 +139,7 @@ export const useProjects = () => {
     modal,
     formData,
     formErrors,
+    isAdmin,
     refreshProjects: fetchProjects,
     openAddModal,
     openEditModal,

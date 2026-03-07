@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAppData } from "../context/AppDataContext";
+import { getAuthUser } from "../services/auth.storage";
 
 export const useProjectDetails = () => {
   const { id } = useParams();
   const { getProjectById } = useAppData();
+  const user = getAuthUser();
+  const role = String(user?.role || "");
+  const canAccessKnowledgebase = role === "admin" || role === "PM";
 
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -32,11 +36,14 @@ export const useProjectDetails = () => {
   }, [getProjectById, id]);
 
   const tabs = useMemo(
-    () => [
-      { key: "chat", label: "💭 Talk To Agent" },
-      { key: "knowledgebase", label: "📚 Knowledgebase" },
-    ],
-    []
+    () => {
+      const baseTabs = [{ key: "chat", label: "💭 Talk To Agent" }];
+      if (canAccessKnowledgebase) {
+        baseTabs.push({ key: "knowledgebase", label: "📚 Knowledgebase" });
+      }
+      return baseTabs;
+    },
+    [canAccessKnowledgebase]
   );
 
   return {

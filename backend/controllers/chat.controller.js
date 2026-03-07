@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const chatService = require("../services/chat.service");
 
-const chatToPMAgent = async (req, res) => {
+const chatToDynamicAgent = async (req, res) => {
   try {
     const { projectId } = req.params;
     const { message, sessionId } = req.body || {};
@@ -14,7 +14,13 @@ const chatToPMAgent = async (req, res) => {
       return res.status(400).json({ success: false, message: "message is required" });
     }
 
-    const data = await chatService.sendChatMessageToDynamicAgent({ projectId, message, sessionId, agentType: "PM" });
+    const data = await chatService.sendChatMessageToDynamicAgent({
+      projectId,
+      message,
+      sessionId,
+      requester: req.user,
+    });
+
     if (!data) {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
@@ -25,6 +31,7 @@ const chatToPMAgent = async (req, res) => {
       data,
     });
   } catch (error) {
+    console.log("Error in chatToDynamicAgent:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to process chat",
@@ -42,7 +49,7 @@ const history = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    const data = await chatService.getChatHistory(projectId, sessionId);
+    const data = await chatService.getChatHistory(projectId, sessionId, req.user);
     return res.status(200).json({
       success: true,
       data,
@@ -63,7 +70,7 @@ const sessions = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    const data = await chatService.getChatSessions(projectId);
+    const data = await chatService.getChatSessions(projectId, req.user);
     return res.status(200).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({
@@ -77,13 +84,13 @@ const sessions = async (req, res) => {
 const createSession = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { title, agentType } = req.body || {};
+    const { title } = req.body || {};
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    const data = await chatService.createChatSession(projectId, title || "New Chat", agentType || "general");
+    const data = await chatService.createChatSession(projectId, title || "New Chat", "general", req.user);
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({
@@ -94,4 +101,4 @@ const createSession = async (req, res) => {
   }
 };
 
-module.exports = { chatToPMAgent, history, sessions, createSession };
+module.exports = { chatToDynamicAgent, history, sessions, createSession };
