@@ -18,7 +18,20 @@ app.use("/api/mcp", mcpRoutes);
 
 //app routes
 app.use(express.json());
+
+app.get("/api/v1/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 app.use("/public", express.static(path.join(__dirname, "public")));
 app.use("/api/v1", routes);
+
+// Serve React build in production (frontend served through backend)
+if (process.env.NODE_ENV === "production") {
+  const reactBuild = path.join(__dirname, "../app/build");
+  app.use(express.static(reactBuild));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(reactBuild, "index.html"));
+  });
+}
 
 module.exports = app;
