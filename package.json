@@ -7,7 +7,7 @@
     "server": "nodemon server",
     "app": "npm start --prefix app",
     "dev": "concurrently \"npm run server\" \"npm run app\"",
-    "build": "npm install && npm install --prefix app && npm run build --prefix app",
+    "build": "npm install --legacy-peer-deps && npm install --prefix app && npm run build --prefix app",
     "setup:local": "npm install && npm install --prefix app"
   },
   "dependencies": {
