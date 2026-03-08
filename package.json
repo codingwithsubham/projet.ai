@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "server": "nodemon server.js",
-    "dev": "concurrently \"npm run server\" \"cd app && npm start\""
+    "start": "node server",
+    "server": "nodemon server",
+    "app": "npm start --prefix app",
+    "dev": "concurrently \"npm run server\" \"npm run app\"",
+    "build": "npm install && npm install --prefix app && npm run build --prefix app",
+    "setup:local": "npm install && npm install --prefix app"
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.14",
