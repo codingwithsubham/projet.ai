@@ -153,8 +153,10 @@ const isDevImplementationRequest = (message, recentChats = []) => {
   );
   if (hasKeyword) return true;
 
-  // Check if this is a confirmation ("yes") following a dev implementation discussion
-  const isConfirmation = /^(yes|ok|okay|sure|confirm|proceed|go ahead|do it)/i.test(
+  // Check if this is a short confirmation ("yes", "ok") following a dev implementation discussion.
+  // Only treat it as confirmation if the message is JUST a confirmation word (with optional punctuation),
+  // not a longer sentence like "okay show me the user stories".
+  const isConfirmation = /^(yes|ok|okay|sure|confirm|proceed|go ahead|do it)[!.,\s]*$/i.test(
     normalizedMessage,
   );
   if (isConfirmation && Array.isArray(recentChats) && recentChats.length > 0) {
@@ -240,6 +242,14 @@ const coreOrchastrator = async ({
       `- Repository: ${project.repolink || "No repository URL."}`,
     ];
 
+    const ownerRepo = parseOwnerRepo(project.repolink);
+    if (ownerRepo) {
+      systemPromptParts.push(
+        `- GitHub Owner: ${ownerRepo.owner}`,
+        `- GitHub Repo: ${ownerRepo.repo}`,
+      );
+    }
+
     if (agentType === "PM") {
       systemPromptParts.push("System Rules:", ...SYSTEM_RULES);
     }
@@ -324,6 +334,15 @@ const runAgentInBackground = async ({
       `- Project Name: ${project.name || "Untitled Project"}`,
       `- Repository: ${project.repolink || "No repository URL."}`,
     ];
+
+    const parsedRepo = parseOwnerRepo(project.repolink);
+    if (parsedRepo) {
+      systemPromptParts.push(
+        `- GitHub Owner: ${parsedRepo.owner}`,
+        `- GitHub Repo: ${parsedRepo.repo}`,
+      );
+    }
+
     const systemPrompt = systemPromptParts.join(" ");
 
     const userPrompt = [
