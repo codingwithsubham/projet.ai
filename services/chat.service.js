@@ -1,12 +1,8 @@
 const ChatSession = require("../models/ChatSessionModel");
 const {
   coreOrchastrator,
-  isDevImplementationRequest,
-  runAgentInBackground,
-  validateIssueTypeForImplementation,
-  extractIssueNumber,
+  maybeStartAsyncImplementation,
 } = require("./core-agent.service");
-const projectService = require("./project.service");
 const {
   toText,
   buildRagContext,
@@ -15,7 +11,6 @@ const {
   buildRecentChatMessages,
   buildSessionTitle,
   getOrCreateSession,
-  MAX_PREVIOUS_CONVERSATIONS,
 } = require("../helpers/chat.helpers");
 
 const isAdminUser = (user) => String(user?.role || "") === "admin";
@@ -46,89 +41,18 @@ const sendChatMessageToDynamicAgent = async ({
       ? requesterContext.agentType
       : agentType;
 
-    // For dev agent implementation requests, run in background and return immediately
-    if (selectedAgentType === "dev") {
-      const cleanMessage = String(message || "").trim();
+    const asyncStartResult = await maybeStartAsyncImplementation({
+      projectId,
+      message,
+      sessionId,
+      agentType: selectedAgentType,
+      userId: requesterContext.userId,
+      isAdmin: requesterContext.isAdmin,
+      requester,
+    });
 
-      const session = await getOrCreateSession({
-        projectId,
-        sessionId,
-        agentType: selectedAgentType,
-        userId: requesterContext.userId,
-        isAdmin: requesterContext.isAdmin,
-      });
-
-      const recentChats = session?.chats || [];
-
-      if (isDevImplementationRequest(cleanMessage, recentChats)) {
-        const project = await projectService.getProjectById(
-          projectId,
-          requester,
-        );
-        if (!project) return null;
-
-        // Validate issue type before launching background implementation
-        const issueNumber = extractIssueNumber(cleanMessage);
-        if (issueNumber) {
-          const validation = await validateIssueTypeForImplementation(
-            project,
-            issueNumber,
-          );
-
-          if (!validation.allowed) {
-            session.chats.push({ role: "user", content: cleanMessage });
-            session.chats.push({
-              role: "assistant",
-              content: validation.message,
-            });
-
-            if (!session.title || session.title === "New Chat") {
-              session.title = buildSessionTitle(cleanMessage);
-            }
-
-            await session.save();
-
-            return {
-              projectId,
-              sessionId: String(session._id),
-              response: validation.message,
-              chats: session.chats,
-            };
-          }
-        }
-
-        const asyncMessage =
-          "🚀 **Implementation is in progress.** I'm creating a new branch, implementing the changes, and will raise a pull request. This may take a few minutes — check back shortly to see the results.";
-
-        // Save user message and the async acknowledgment to the session
-        session.chats.push({ role: "user", content: cleanMessage });
-        session.chats.push({ role: "assistant", content: asyncMessage });
-
-        if (!session.title || session.title === "New Chat") {
-          session.title = buildSessionTitle(cleanMessage);
-        }
-
-        await session.save();
-
-        // Fire the agent work in the background
-        setImmediate(() => {
-          runAgentInBackground({
-            projectId,
-            cleanMessage,
-            session,
-            project,
-            agentType: selectedAgentType,
-          });
-        });
-
-        return {
-          projectId,
-          sessionId: String(session._id),
-          response: asyncMessage,
-          chats: session.chats,
-          async: true,
-        };
-      }
+    if (asyncStartResult) {
+      return asyncStartResult;
     }
 
     return await coreOrchastrator({

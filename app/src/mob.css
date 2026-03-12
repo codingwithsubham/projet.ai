@@ -675,6 +675,21 @@
   color: #1f3150;
 }
 
+.mob-bubble .impl-progress {
+  min-width: 0;
+}
+
+.mob-bubble .impl-progress__meta {
+  align-items: center;
+}
+
+.impl-progress__refresh-mobile {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
 .mob-bubble--thinking {
   border: 1px solid #cad7ea;
   background: linear-gradient(120deg, #edf3fb 0%, #e5eef9 100%);
@@ -713,6 +728,8 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
+  display: grid;
+  gap: 8px;
 }
 
 .mob-markdown p {
@@ -755,6 +772,27 @@
   background: transparent;
   color: inherit;
   padding: 0;
+}
+
+.mob-markdown .chat-markdown__table-wrap {
+  margin: 2px 0;
+  border-color: #cfdae7;
+  border-radius: 10px;
+}
+
+.mob-markdown .chat-markdown__table {
+  min-width: 440px;
+}
+
+.mob-markdown .chat-markdown__table th,
+.mob-markdown .chat-markdown__table td {
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.mob-markdown .chat-markdown__table thead th {
+  background: #eef4fb;
+  color: #35506f;
 }
 
 .mob-chat-input {

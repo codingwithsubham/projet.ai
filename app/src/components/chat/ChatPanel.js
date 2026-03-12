@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
 import { useProjectChat } from "../../hooks/useProjectChat";
 import PromptLibrary from "./PromptLibrary";
+import ImplementationProgressCard, {
+  getIsInProgressMessage,
+} from "./ImplementationProgressCard";
+import MarkdownMessage from "./MarkdownMessage";
 
 const ChatPanel = ({ projectId }) => {
   const streamRef = useRef(null);
@@ -21,6 +24,7 @@ const ChatPanel = ({ projectId }) => {
     sendMessage,
     openSession,
     newChat,
+    refreshActiveSession,
     showPromptLibrary,
     setShowPromptLibrary,
   } = useProjectChat(projectId);
@@ -87,16 +91,36 @@ const ChatPanel = ({ projectId }) => {
           {loadingHistory ? <p className="kb-muted">Loading history...</p> : null}
           {error ? <p className="projects-error">{error}</p> : null}
 
-          {messages.map((m, idx) => (
+          {messages.map((m, idx) => {
+            const isInProgressAssistantMessage =
+              m.role === "assistant" && getIsInProgressMessage(m.content);
+            const isLastMessage = idx === messages.length - 1;
+
+            if (isInProgressAssistantMessage && !isLastMessage) {
+              return null;
+            }
+
+            return (
             <div key={m._id || idx} className={`chat-message chat-message--${m.role}`}>
               <div className={`chat-avatar chat-avatar--${m.role}`} aria-hidden="true">
                 {m.role === "assistant" ? "🤖" : "🧑"}
               </div>
               <article className={`chat-bubble chat-bubble--${m.role}`}>
-                {m.role === "assistant" ? <ReactMarkdown>{m.content || ""}</ReactMarkdown> : <p>{m.content}</p>}
+                {isInProgressAssistantMessage ? (
+                  <ImplementationProgressCard
+                    content={m.content || ""}
+                    onRefresh={refreshActiveSession}
+                    refreshing={loadingHistory}
+                  />
+                ) : m.role === "assistant" ? (
+                  <MarkdownMessage content={m.content || ""} />
+                ) : (
+                  <p>{m.content}</p>
+                )}
               </article>
             </div>
-          ))}
+            );
+          })}
 
           {sending ? (
             <div className="chat-message chat-message--assistant">

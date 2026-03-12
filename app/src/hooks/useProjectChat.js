@@ -94,6 +94,19 @@ export const useProjectChat = (projectId) => {
     }
   }, [createSession]);
 
+  const refreshActiveSession = useCallback(async () => {
+    if (!activeSessionId) return;
+
+    await loadHistory(activeSessionId);
+
+    try {
+      const refreshed = await loadSessions();
+      setSessions(refreshed);
+    } catch {
+      // Keep refresh resilient; history already attempted above.
+    }
+  }, [activeSessionId, loadHistory, loadSessions]);
+
   const sendMessage = useCallback(async () => {
     const message = input.trim();
     if (!projectId || !activeSessionId || !message || sending) return;
@@ -133,6 +146,7 @@ export const useProjectChat = (projectId) => {
     sendMessage,
     openSession,
     newChat,
+    refreshActiveSession,
     showPromptLibrary,
     setShowPromptLibrary,
   };

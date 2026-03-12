@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   createChatSessionApi,
@@ -13,6 +12,10 @@ import {
   getAuthToken,
   getAuthUser,
 } from "../../services/auth.storage";
+import MarkdownMessage from "../../components/chat/MarkdownMessage";
+import ImplementationProgressCard, {
+  getIsInProgressMessage,
+} from "../../components/chat/ImplementationProgressCard";
 
 const isDevUser = (user) => String(user?.role || "").toLowerCase() === "dev";
 const THINKING_STEPS = [
@@ -206,6 +209,26 @@ const MobileDevChat = () => {
     }
   };
 
+  const refreshCurrentSession = async () => {
+    if (!sessionId) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      await loadHistory(sessionId);
+      await fetchSessions();
+    } catch (nextError) {
+      const message =
+        nextError?.response?.data?.message ||
+        nextError?.message ||
+        "Failed to refresh chat";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <section className="mob-shell mob-shell--chatnext">
       <div className="mob-chat-nav">
@@ -298,6 +321,14 @@ const MobileDevChat = () => {
 
               {sortedMessages.map((message, index) => {
                 const isUser = message.role === "user";
+                const isInProgressAssistantMessage =
+                  !isUser && getIsInProgressMessage(message.content);
+                const isLastMessage = index === sortedMessages.length - 1;
+
+                if (isInProgressAssistantMessage && !isLastMessage) {
+                  return null;
+                }
+
                 return (
                   <div
                     key={`${message._id || "m"}-${index}`}
@@ -308,10 +339,18 @@ const MobileDevChat = () => {
                     </span>
                     {isUser ? (
                       <p>{message.content}</p>
+                    ) : isInProgressAssistantMessage ? (
+                      <ImplementationProgressCard
+                        content={message.content || ""}
+                        onRefresh={refreshCurrentSession}
+                        refreshing={loading}
+                        refreshButtonClassName="mob-btn mob-btn--ghost impl-progress__refresh-mobile"
+                      />
                     ) : (
-                      <ReactMarkdown>
-                        {message.content || ""}
-                      </ReactMarkdown>
+                      <MarkdownMessage
+                        content={message.content || ""}
+                        className="mob-markdown"
+                      />
                     )}
                   </div>
                 );

@@ -1,10 +1,5 @@
 const projectService = require("./project.service");
 const { agentParser } = require("../openai");
-const {
-  PM_SYSTEM_PROMPT,
-  DEV_SYSTEM_PROMPT,
-  SYSTEM_RULES,
-} = require("../common/ai-constants");
 const { createDynamicAgent } = require("../z-agents");
 const {
   getOrCreateSession,
@@ -16,166 +11,21 @@ const {
   buildSessionTitle,
   MAX_PREVIOUS_CONVERSATIONS,
 } = require("../helpers/chat.helpers");
+const {
+  buildSystemPrompt,
+  resolveIntent,
+} = require("../helpers/systemPromptBuilder");
+const {
+  DEFAULT_GRAPH_RECURSION_LIMIT,
+  ASYNC_IMPLEMENTATION_ACK,
+} = require("../common/constants");
 
-const https = require("https");
+const shouldRunAsyncImplementation = ({ agentType, message }) => {
+  const normalizedAgentType = String(agentType || "").toLowerCase();
+  if (normalizedAgentType !== "dev") return false;
 
-const DEFAULT_GRAPH_RECURSION_LIMIT = 25;
-
-// Issue types that are allowed for implementation
-const ALLOWED_ISSUE_TYPES = ["[user story]", "[bug]"];
-const BLOCKED_ISSUE_TYPES_LABELS = {
-  "[epic]": "Epic",
-  "[task]": "Task",
-};
-
-// Extract issue number from user message (e.g., "implement #40" or "implement issue 40")
-const extractIssueNumber = (message) => {
-  const normalized = String(message || "").trim();
-  const match = normalized.match(/#(\d+)|issue\s+(\d+)|story\s+(\d+)|bug\s+(\d+)/i);
-  if (match) return match[1] || match[2] || match[3] || match[4];
-  return null;
-};
-
-// Parse owner/repo from a GitHub repolink URL
-const parseOwnerRepo = (repolink) => {
-  const cleaned = String(repolink || "").replace(/\.git$/, "").replace(/\/$/, "");
-  const match = cleaned.match(/github\.com[\/:]([^\/]+)\/([^\/]+)/);
-  if (match) return { owner: match[1], repo: match[2] };
-  return null;
-};
-
-// Fetch issue title from GitHub REST API using PAT token
-const fetchIssueTitle = (owner, repo, issueNumber, patToken) => {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: "api.github.com",
-      path: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${encodeURIComponent(issueNumber)}`,
-      method: "GET",
-      headers: {
-        "User-Agent": "aidlc-dev-agent",
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${patToken}`,
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => {
-        if (res.statusCode === 200) {
-          try {
-            const parsed = JSON.parse(data);
-            resolve(parsed.title || "");
-          } catch {
-            reject(new Error("Failed to parse GitHub response"));
-          }
-        } else {
-          reject(new Error(`GitHub API returned ${res.statusCode}`));
-        }
-      });
-    });
-
-    req.on("error", reject);
-    req.end();
-  });
-};
-
-// Validate whether an issue type is allowed for implementation.
-// Returns { allowed: true } or { allowed: false, message: "..." }
-const validateIssueTypeForImplementation = async (project, issueNumber) => {
-  try {
-    const parsed = parseOwnerRepo(project.repolink);
-    if (!parsed) return { allowed: true }; // Can't validate, let agent handle it
-
-    const title = await fetchIssueTitle(
-      parsed.owner,
-      parsed.repo,
-      issueNumber,
-      project.pat_token,
-    );
-
-    const lowerTitle = String(title || "").toLowerCase();
-
-    // Check if it's a blocked type
-    for (const [prefix, label] of Object.entries(BLOCKED_ISSUE_TYPES_LABELS)) {
-      if (lowerTitle.startsWith(prefix)) {
-        return {
-          allowed: false,
-          message: `⚠️ **Cannot implement an ${label}.**\n\nThe issue **#${issueNumber}** is an **${label}** (\"${title}\"). Implementation can only be performed for **User Stories** and **Bugs**.\n\nPlease select a specific User Story or Bug under this ${label} and ask me to implement that instead.`,
-        };
-      }
-    }
-
-    // Check if it matches an allowed type
-    const isAllowed = ALLOWED_ISSUE_TYPES.some((t) => lowerTitle.startsWith(t));
-    if (!isAllowed && lowerTitle) {
-      return {
-        allowed: false,
-        message: `⚠️ **Cannot implement this issue type.**\n\nThe issue **#${issueNumber}** (\"${title}\") does not appear to be a **User Story** or **Bug**. Implementation is only supported for issues prefixed with \`[User Story]\` or \`[Bug]\`.\n\nPlease select a valid User Story or Bug to implement.`,
-      };
-    }
-
-    return { allowed: true };
-  } catch (error) {
-    console.warn("⚠️ Could not validate issue type, proceeding:", error.message);
-    return { allowed: true }; // On error, let the agent proceed
-  }
-};
-
-const IMPLEMENTATION_KEYWORDS = [
-  "implement",
-  "build",
-  "develop",
-  "code",
-  "create the",
-  "write the code",
-  "scaffold",
-  "set up",
-  "setup",
-  "work on",
-  "start working",
-  "begin implementation",
-  "fix the bug",
-  "fix issue",
-  "resolve issue",
-  "resolve the bug",
-];
-
-const isDevImplementationRequest = (message, recentChats = []) => {
-  const normalizedMessage = String(message || "")
-    .trim()
-    .toLowerCase();
-  if (!normalizedMessage) return false;
-
-  // Direct implementation keywords in the user message
-  const hasKeyword = IMPLEMENTATION_KEYWORDS.some((kw) =>
-    normalizedMessage.includes(kw),
-  );
-  if (hasKeyword) return true;
-
-  // Check if this is a short confirmation ("yes", "ok") following a dev implementation discussion.
-  // Only treat it as confirmation if the message is JUST a confirmation word (with optional punctuation),
-  // not a longer sentence like "okay show me the user stories".
-  const isConfirmation = /^(yes|ok|okay|sure|confirm|proceed|go ahead|do it)[!.,\s]*$/i.test(
-    normalizedMessage,
-  );
-  if (isConfirmation && Array.isArray(recentChats) && recentChats.length > 0) {
-    const lastAssistant = [...recentChats]
-      .reverse()
-      .find((c) => c?.role === "assistant");
-    if (lastAssistant) {
-      const lastContent = String(lastAssistant.content || "").toLowerCase();
-      return (
-        lastContent.includes("implement") ||
-        lastContent.includes("pull request") ||
-        lastContent.includes("branch") ||
-        lastContent.includes("user story") ||
-        lastContent.includes("acceptance criteria")
-      );
-    }
-  }
-
-  return false;
+  const intent = resolveIntent({ agentType: normalizedAgentType, message });
+  return intent === "implementation";
 };
 
 const resolveGraphRecursionLimit = () => {
@@ -189,6 +39,63 @@ const resolveGraphRecursionLimit = () => {
   }
 
   return DEFAULT_GRAPH_RECURSION_LIMIT;
+};
+
+const maybeStartAsyncImplementation = async ({
+  projectId,
+  message,
+  sessionId,
+  agentType = "general",
+  userId,
+  isAdmin = false,
+  requester = null,
+}) => {
+  const cleanMessage = String(message || "").trim();
+  if (!cleanMessage) return null;
+
+  if (!shouldRunAsyncImplementation({ agentType, message: cleanMessage })) {
+    return null;
+  }
+
+  const project = await projectService.getProjectById(projectId, requester);
+  if (!project) return null;
+
+  const session = await getOrCreateSession({
+    projectId,
+    sessionId,
+    agentType,
+    userId,
+    isAdmin,
+  });
+
+  session.chats.push({ role: "user", content: cleanMessage });
+  session.chats.push({ role: "assistant", content: ASYNC_IMPLEMENTATION_ACK });
+
+  if (!session.title || session.title === "New Chat") {
+    session.title = buildSessionTitle(cleanMessage);
+  }
+
+  await session.save();
+
+  setImmediate(() => {
+    runAgentInBackground({
+      projectId,
+      cleanMessage,
+      sessionId: String(session._id),
+      project,
+      agentType,
+      userId: session.user_id || userId || null,
+      isAdmin,
+    });
+  });
+
+  return {
+    projectId,
+    sessionId: String(session._id),
+    response: ASYNC_IMPLEMENTATION_ACK,
+    chats: session.chats,
+    async: true,
+  };
 };
 
 // Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
@@ -227,34 +134,11 @@ const coreOrchastrator = async ({
     // Build RAG context from Pinecone
     const ragContext = await buildRagContext(project, cleanMessage);
 
-    const promptByAgentType = {
-      PM: PM_SYSTEM_PROMPT,
-      dev: DEV_SYSTEM_PROMPT,
-      general: PM_SYSTEM_PROMPT,
-    };
-
-    const selectedPrompt =
-      promptByAgentType[agentType] || promptByAgentType.general;
-
-    const systemPromptParts = [
-      ...selectedPrompt,
-      `- Project Name: ${project.name || "Untitled Project"}`,
-      `- Repository: ${project.repolink || "No repository URL."}`,
-    ];
-
-    const ownerRepo = parseOwnerRepo(project.repolink);
-    if (ownerRepo) {
-      systemPromptParts.push(
-        `- GitHub Owner: ${ownerRepo.owner}`,
-        `- GitHub Repo: ${ownerRepo.repo}`,
-      );
-    }
-
-    if (agentType === "PM") {
-      systemPromptParts.push("System Rules:", ...SYSTEM_RULES);
-    }
-
-    const systemPrompt = systemPromptParts.join(" ");
+    const { systemPrompt } = buildSystemPrompt({
+      agentType,
+      message: cleanMessage,
+      project,
+    });
 
     const userPrompt = [
       buildUserMessage(ragContext, cleanMessage),
@@ -307,14 +191,22 @@ const coreOrchastrator = async ({
 const runAgentInBackground = async ({
   projectId,
   cleanMessage,
-  session,
+  sessionId,
   project,
   agentType,
+  userId = null,
+  isAdmin = false,
 }) => {
   try {
-    console.log(
-      `\n🔄 [Background] Starting dev agent for session ${session._id}...`,
-    );
+    console.log(`\n[Background] Starting agent for session ${sessionId}...`);
+
+    const session = await getOrCreateSession({
+      projectId,
+      sessionId,
+      agentType,
+      userId,
+      isAdmin,
+    });
 
     const recentChatMessages = buildRecentChatMessages(
       session?.chats,
@@ -323,27 +215,17 @@ const runAgentInBackground = async ({
 
     const executionDirective = [
       "Execution Directive:",
-      "Proceed immediately with full implementation. Do NOT ask for confirmation.",
-      "Create a new branch, implement the changes, and create a pull request.",
+      "Proceed immediately with implementation using available MCP tools.",
+      "Do not block for extra confirmation.",
     ].join("\n");
 
     const ragContext = await buildRagContext(project, cleanMessage);
 
-    const systemPromptParts = [
-      ...DEV_SYSTEM_PROMPT,
-      `- Project Name: ${project.name || "Untitled Project"}`,
-      `- Repository: ${project.repolink || "No repository URL."}`,
-    ];
-
-    const parsedRepo = parseOwnerRepo(project.repolink);
-    if (parsedRepo) {
-      systemPromptParts.push(
-        `- GitHub Owner: ${parsedRepo.owner}`,
-        `- GitHub Repo: ${parsedRepo.repo}`,
-      );
-    }
-
-    const systemPrompt = systemPromptParts.join(" ");
+    const { systemPrompt } = buildSystemPrompt({
+      agentType,
+      message: cleanMessage,
+      project,
+    });
 
     const userPrompt = [
       buildUserMessage(ragContext, cleanMessage),
@@ -370,28 +252,17 @@ const runAgentInBackground = async ({
       parsed || result?.output || result?.content || "No response generated.",
     );
 
-    // Reload session to avoid stale writes
-    const freshSession = await getOrCreateSession({
-      projectId,
-      sessionId: String(session._id),
-      agentType,
-      userId: session.user_id,
-      isAdmin: false,
-    });
-
-    freshSession.chats.push({
+    session.chats.push({
       role: "assistant",
       content: assistantText,
     });
 
-    await freshSession.save();
+    await session.save();
 
-    console.log(
-      `\n✅ [Background] Dev agent completed for session ${session._id}`,
-    );
+    console.log(`\n[Background] Agent completed for session ${sessionId}`);
   } catch (error) {
     console.error(
-      `\n❌ [Background] Dev agent error for session ${session._id}:`,
+      `\n[Background] Agent error for session ${sessionId}:`,
       error,
     );
 
@@ -399,10 +270,10 @@ const runAgentInBackground = async ({
     try {
       const errorSession = await getOrCreateSession({
         projectId,
-        sessionId: String(session._id),
-        agentType: "dev",
-        userId: session.user_id,
-        isAdmin: false,
+        sessionId,
+        agentType,
+        userId,
+        isAdmin,
       });
 
       errorSession.chats.push({
@@ -422,8 +293,6 @@ const runAgentInBackground = async ({
 
 module.exports = {
   coreOrchastrator,
-  isDevImplementationRequest,
+  maybeStartAsyncImplementation,
   runAgentInBackground,
-  validateIssueTypeForImplementation,
-  extractIssueNumber,
 };
