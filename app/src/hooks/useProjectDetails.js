@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAppData } from "../context/AppDataContext";
 import { getAuthUser } from "../services/auth.storage";
@@ -13,8 +13,6 @@ export const useProjectDetails = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("chat");
-  const [isChatFullView, setIsChatFullView] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -35,26 +33,5 @@ export const useProjectDetails = () => {
     run();
   }, [getProjectById, id]);
 
-  const tabs = useMemo(
-    () => {
-      const baseTabs = [{ key: "chat", label: "💭 Talk To Agent" }];
-      if (canAccessKnowledgebase) {
-        baseTabs.push({ key: "knowledgebase", label: "📚 Knowledgebase" });
-      }
-      return baseTabs;
-    },
-    [canAccessKnowledgebase]
-  );
-
-  return {
-    id,
-    project,
-    loading,
-    error,
-    tabs,
-    activeTab,
-    setActiveTab,
-    isChatFullView,
-    setIsChatFullView,
-  };
+  return { id, project, loading, error, canAccessKnowledgebase };
 };

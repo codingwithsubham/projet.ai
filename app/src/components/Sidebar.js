@@ -6,6 +6,7 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const user = getAuthUser();
   const isAdmin = String(user?.role || "") === "admin";
+  const isPM = String(user?.role || "") === "PM";
 
   const onLogout = () => {
     clearAuthSession();
@@ -25,6 +26,19 @@ const Sidebar = () => {
           <NavLink to="/projects" className="app-sidebar__link">
             📁 Projects
           </NavLink>
+          <NavLink to="/chat" className="app-sidebar__link">
+            💬 Chat
+          </NavLink>
+          {isPM || isAdmin ? (
+            <NavLink to="/presentations" className="app-sidebar__link">
+              📊 Presentations
+            </NavLink>
+          ) : null}
+          {isPM || isAdmin ? (
+            <NavLink to="/documents" className="app-sidebar__link">
+              📝 Documents
+            </NavLink>
+          ) : null}
           {isAdmin ? (
             <NavLink to="/users" className="app-sidebar__link">
               👥 Users

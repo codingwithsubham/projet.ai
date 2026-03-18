@@ -132,6 +132,7 @@ export const useProjects = () => {
   }, [deleteProjectById, isAdmin]);
 
   return {
+    projects,
     tableProjects,
     projectsLoading,
     projectsError,

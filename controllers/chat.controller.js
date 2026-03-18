@@ -101,4 +101,32 @@ const createSession = async (req, res) => {
   }
 };
 
-module.exports = { chatToDynamicAgent, history, sessions, createSession };
+const deleteSession = async (req, res) => {
+  try {
+    const { projectId, sessionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({ success: false, message: "Invalid session id" });
+    }
+
+    const deleted = await chatService.deleteChatSession(projectId, sessionId, req.user);
+    
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Chat session not found or unauthorized" });
+    }
+
+    return res.status(200).json({ success: true, message: "Chat session deleted" });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete chat session",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { chatToDynamicAgent, history, sessions, createSession, deleteSession };

@@ -107,7 +107,7 @@ const Projects = () => {
                         onClick={() => openProjectPage(project._id)}
                         title="View Project"
                       >
-                        👁️
+                        📂
                       </button>
                       {isAdmin ? (
                         <button

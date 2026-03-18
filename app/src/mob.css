@@ -795,6 +795,17 @@
   color: #35506f;
 }
 
+.mob-markdown .chat-markdown__mermaid-wrap {
+  margin: 2px 0;
+  border-color: #cfdae7;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.mob-markdown .chat-markdown__mermaid-wrap svg {
+  min-width: 440px;
+}
+
 .mob-chat-input {
   display: flex;
   gap: 8px;

@@ -1,11 +1,13 @@
 const { createReactAgent } = require("@langchain/langgraph/prebuilt");
 const { llmAgent } = require("../openai");
-const { createStoreHappyFeedbackTool } = require("../tools/commonTools");
+const { createStoreHappyFeedbackTool, createMermaidChartTool, createMarkdownReportTableTool } = require("../tools/commonTools");
 const { guardToolsForSingleExecution } = require("../helpers/toolExecutionGuard");
 
 const dynamicGeneralAgent = async (project) => {
   const happyFeedbackTool = createStoreHappyFeedbackTool(project);
-  const guardedTools = guardToolsForSingleExecution([happyFeedbackTool]);
+  const mermaidChartTool = createMermaidChartTool();
+  const markdownTableTool = createMarkdownReportTableTool();
+  const guardedTools = guardToolsForSingleExecution([happyFeedbackTool, mermaidChartTool, markdownTableTool]);
 
   const agent = createReactAgent({
     llm: llmAgent,

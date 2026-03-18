@@ -2,12 +2,10 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectDetails } from "../../hooks/useProjectDetails";
 import KnowledgebasePanel from "../../components/knowledgebase/KnowledgebasePanel";
-import ChatPanel from "../../components/chat/ChatPanel";
 
 const ProjectDetails = () => {
   const navigate = useNavigate();
-  const { id, project, loading, error, tabs, activeTab, setActiveTab, isChatFullView, setIsChatFullView } =
-    useProjectDetails();
+  const { id, project, loading, error, canAccessKnowledgebase } = useProjectDetails();
 
   return (
     <section className="project-details-page">
@@ -36,42 +34,27 @@ const ProjectDetails = () => {
               : project?.description || "No description available."}
           </p>
         </div>
-        <div className="project-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`project-tab ${activeTab === tab.key ? "project-tab--active" : ""}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="project-tab-content">
-        {activeTab === "chat" ? (
-          <div className="chat-wrapper">
-            <div className="chat-full-view" onClick={() => setIsChatFullView(!isChatFullView)}>⛶</div>
-            <ChatPanel projectId={id} />
-          </div>
-        ) : (
+        {canAccessKnowledgebase ? (
           <KnowledgebasePanel projectId={id} />
+        ) : (
+          <div className="project-info-card">
+            <div className="project-info-row">
+              <span className="project-info-label">Model</span>
+              <span className="project-info-value">{project?.model || "N/A"}</span>
+            </div>
+            <div className="project-info-row">
+              <span className="project-info-label">Description</span>
+              <span className="project-info-value">{project?.description || "No description."}</span>
+            </div>
+            <p className="kb-muted" style={{ marginTop: 12 }}>
+              Use the <strong>💬 Chat</strong> menu in the sidebar to talk with the AI agent.
+            </p>
+          </div>
         )}
       </div>
-
-      {
-        isChatFullView && activeTab === "chat" && (
-          <div className="chat-full-screen-overlay">
-            <div className="chat-header">
-              <h4>🚀 Pro-jet.ai</h4>
-              <div className="chat-full-view-close" onClick={() => setIsChatFullView(!isChatFullView)}>✖</div>
-            </div>
-            <ChatPanel projectId={id} />
-          </div>
-        )
-      }
     </section>
   );
 };

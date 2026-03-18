@@ -151,11 +151,28 @@ const createChatSession = async (
   };
 };
 
+const deleteChatSession = async (projectId, sessionId, requester = null) => {
+  const requesterContext = getRequesterContext(requester);
+  const scopedFilter =
+    !requesterContext.isAdmin && requesterContext.userId
+      ? { user_id: requesterContext.userId }
+      : {};
+
+  const result = await ChatSession.deleteOne({
+    _id: sessionId,
+    project_id: projectId,
+    ...scopedFilter,
+  });
+
+  return result.deletedCount > 0;
+};
+
 module.exports = {
   sendChatMessageToDynamicAgent,
   getChatHistory,
   getChatSessions,
   createChatSession,
+  deleteChatSession,
   getOrCreateSession,
   buildRecentChatMessages,
   buildUserMessage,

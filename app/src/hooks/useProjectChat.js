@@ -4,6 +4,7 @@ import {
   getChatHistoryApi,
   getChatSessionsApi,
   sendChatApi,
+  deleteChatSessionApi,
 } from "../services/chat.api";
 
 export const useProjectChat = (projectId) => {
@@ -94,6 +95,37 @@ export const useProjectChat = (projectId) => {
     }
   }, [createSession]);
 
+  const deleteSession = useCallback(async (sessionId) => {
+    if (!projectId || !sessionId) return false;
+    
+    try {
+      await deleteChatSessionApi(projectId, sessionId);
+      
+      // Remove session from list
+      setSessions((prev) => prev.filter((s) => s._id !== sessionId));
+      
+      // If deleted session was active, switch to first session or create new one
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter((s) => s._id !== sessionId);
+        if (remaining.length > 0) {
+          await openSession(remaining[0]._id);
+        } else {
+          const created = await createSession();
+          if (created?._id) {
+            setSessions([created]);
+            setActiveSessionId(created._id);
+            setMessages([]);
+          }
+        }
+      }
+      
+      return true;
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Failed to delete chat");
+      return false;
+    }
+  }, [projectId, activeSessionId, sessions, createSession, openSession]);
+
   const refreshActiveSession = useCallback(async () => {
     if (!activeSessionId) return;
 
@@ -146,6 +178,7 @@ export const useProjectChat = (projectId) => {
     sendMessage,
     openSession,
     newChat,
+    deleteSession,
     refreshActiveSession,
     showPromptLibrary,
     setShowPromptLibrary,

@@ -24,6 +24,7 @@ const ChatPanel = ({ projectId }) => {
     sendMessage,
     openSession,
     newChat,
+    deleteSession,
     refreshActiveSession,
     showPromptLibrary,
     setShowPromptLibrary,
@@ -48,6 +49,13 @@ const ChatPanel = ({ projectId }) => {
     }
   };
 
+  const handleDeleteSession = (e, sessionId) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this chat?")) {
+      deleteSession(sessionId);
+    }
+  };
+
   return (
     <div className={`chat-layout ${historyOpen ? "chat-layout--open" : ""}`}>
       <aside className={`chat-history ${historyOpen ? "is-open" : ""}`}>
@@ -67,7 +75,16 @@ const ChatPanel = ({ projectId }) => {
                 className={`chat-history__item ${activeSessionId === s._id ? "chat-history__item--active" : ""}`}
                 onClick={() => openSession(s._id)}
               >
-                {s.title || "New Chat"}
+                <span className="chat-history__item-text">{s.title || "New Chat"}</span>
+                <button
+                  type="button"
+                  className="chat-history__delete-btn"
+                  onClick={(e) => handleDeleteSession(e, s._id)}
+                  title="Delete chat"
+                  aria-label="Delete chat"
+                >
+                  ✖
+                </button>
               </button>
             ))
           ) : (

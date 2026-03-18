@@ -11,7 +11,12 @@ apiClient.interceptors.request.use((config) => {
   if (config?.skipAuth) return config;
 
   const token = getAuthToken();
-  if (!token) return config;
+  if (!token) {
+    console.warn("⚠️ No token found in localStorage for request:", config.url);
+    return config;
+  }
+
+  console.log("✅ Adding Authorization header to request:", config.url);
 
   return {
     ...config,

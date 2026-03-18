@@ -21,3 +21,8 @@ export const createChatSessionApi = async (projectId, title = "New Chat") => {
   const response = await apiClient.post(`/chats/${projectId}/sessions`, { title });
   return response.data;
 };
+
+export const deleteChatSessionApi = async (projectId, sessionId) => {
+  const response = await apiClient.delete(`/chats/${projectId}/sessions/${sessionId}`);
+  return response.data;
+};

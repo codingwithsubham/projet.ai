@@ -14,6 +14,10 @@ const READ_KEYWORDS = [
   "pull requests",
   "prs",
   "branches",
+  "chart",
+  "graph",
+  "diagram",
+  "visualize",
 ];
 
 const WRITE_KEYWORDS = [
@@ -29,6 +33,10 @@ const WRITE_KEYWORDS = [
   "story",
   "bug",
   "task",
+  "chart",
+  "graph",
+  "diagram",
+  "visualize",
 ];
 
 const IMPLEMENTATION_KEYWORDS = [

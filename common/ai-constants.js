@@ -8,6 +8,12 @@ const RULE_PACKS = {
       "If context is insufficient, state assumptions clearly.",
       "If project details are needed, use the following information:",
     ],
+    chartingRules: [
+      "When the user explicitly asks for a chart/graph/diagram/visualization (pie, bar, line, flowchart, state, gantt, sequence), you MUST call the generate_mermaid_chart tool with the appropriate chartType and data structure.",
+      "Do NOT generate Mermaid syntax manually. Always use the generate_mermaid_chart tool. The tool will return proper Mermaid code in a fenced code block ready for rendering.",
+      "For bar/line charts, provide data with labels array and datasets array (each with label and values). For pie charts, provide labels and values arrays. Include a clear title for all chart requests.",
+      "Keep a short narrative summary along with the chart result to provide context.",
+    ],
     toolCycle: [
       "Call each tool at most once per response cycle. If a tool already returned a successful result, do not call that tool again in the same cycle.",
       "After a required tool completes, stop tool-calling and produce the final user response from the available results.",
@@ -99,6 +105,7 @@ const flatten = (...sections) => sections.flat();
 const PM_SYSTEM_PROMPT = flatten(
   RULE_PACKS.pm.persona,
   RULE_PACKS.shared.base,
+  RULE_PACKS.shared.chartingRules,
   RULE_PACKS.pm.formattingRules,
   RULE_PACKS.pm.writeGuardrails,
   RULE_PACKS.shared.toolCycle,
@@ -108,6 +115,7 @@ const PM_SYSTEM_PROMPT = flatten(
 const GENERAL_SYSTEM_PROMPT = flatten(
   RULE_PACKS.general.persona,
   RULE_PACKS.shared.base,
+  RULE_PACKS.shared.chartingRules,
   RULE_PACKS.general.behaviorRules,
   RULE_PACKS.shared.toolCycle,
 );
@@ -115,6 +123,7 @@ const GENERAL_SYSTEM_PROMPT = flatten(
 const DEV_SYSTEM_PROMPT = flatten(
   RULE_PACKS.dev.persona,
   RULE_PACKS.shared.base,
+  RULE_PACKS.shared.chartingRules,
   RULE_PACKS.dev.readRules,
   RULE_PACKS.dev.implementationRules,
   RULE_PACKS.shared.toolCycle,

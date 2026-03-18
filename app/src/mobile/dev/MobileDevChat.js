@@ -5,6 +5,7 @@ import {
   getChatHistoryApi,
   getChatSessionsApi,
   sendChatApi,
+  deleteChatSessionApi,
 } from "../../services/chat.api";
 import { getProjectByIdApi } from "../../services/project.api";
 import {
@@ -209,6 +210,29 @@ const MobileDevChat = () => {
     }
   };
 
+  const handleDeleteSession = async (e, deleteSessionId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this chat?")) return;
+
+    try {
+      await deleteChatSessionApi(projectId, deleteSessionId);
+      setSessions((prev) => prev.filter((s) => s._id !== deleteSessionId));
+
+      // If deleted session was active, load another one
+      if (String(sessionId) === String(deleteSessionId)) {
+        const remaining = sessions.filter((s) => s._id !== deleteSessionId);
+        if (remaining.length > 0) {
+          await handleSessionSelect(remaining[0]._id);
+        } else {
+          setSessionId("");
+          setMessages([]);
+        }
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Failed to delete chat");
+    }
+  };
+
   const refreshCurrentSession = async () => {
     if (!sessionId) return;
 
@@ -296,17 +320,39 @@ const MobileDevChat = () => {
               <p className="mob-info">No chat sessions yet.</p>
             ) : null}
             {sessions.map((session) => (
-              <button
+              <div
                 key={session._id}
-                type="button"
                 className={`mob-history-item ${String(sessionId) === String(session._id) ? "mob-history-item--active" : ""}`}
-                onClick={() => handleSessionSelect(session._id)}
               >
-                <span className="mob-history-item__title">
-                  {session.title || "New Chat"}
-                </span>
-                <small>{session.agentType || "general"}</small>
-              </button>
+                <button
+                  type="button"
+                  style={{ flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  onClick={() => handleSessionSelect(session._id)}
+                >
+                  <span className="mob-history-item__title">
+                    {session.title || "New Chat"}
+                  </span>
+                  <small>{session.agentType || "general"}</small>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteSession(e, session._id)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    padding: "4px",
+                    opacity: 0.6,
+                    transition: "opacity 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.target.style.opacity = "1")}
+                  onMouseLeave={(e) => (e.target.style.opacity = "0.6")}
+                  title="Delete chat"
+                >
+                  🗑️
+                </button>
+              </div>
             ))}
           </div>
         ) : (
