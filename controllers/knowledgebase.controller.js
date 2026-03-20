@@ -4,6 +4,9 @@ const {
   getKnowledgeDocumentsByProjectId,
   analyzeKnowledgeDocument,
   analyzeKnowledgeRepository,
+  getSyncStatus,
+  getSyncStatusById,
+  getSyncHistory,
 } = require("../services/knowledgebase.service");
 
 const uploadDocument = async (req, res) => {
@@ -117,15 +120,126 @@ const analyzeRepository = async (req, res) => {
       });
     }
 
-    return res.status(200).json({
+    // Return 202 Accepted for async operations (sync started in background)
+    // Return 200 if sync was already running
+    const statusCode = result.alreadyRunning ? 200 : 202;
+    
+    return res.status(statusCode).json({
       success: true,
-      message: "Repository analysis started",
-      data: result,
+      message: result.message,
+      data: {
+        syncId: result.syncId,
+        status: result.status,
+        alreadyRunning: result.alreadyRunning,
+      },
     });
   } catch (error) {
     return res.status(400).json({
       success: false,
-      message: "Failed to analyze repository",
+      message: "Failed to start repository analysis",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get sync status for a project (latest sync)
+ */
+const getProjectSyncStatus = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { type = "codebase" } = req.query;
+    
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project id",
+      });
+    }
+
+    const syncStatus = await getSyncStatus(projectId, type);
+    
+    if (!syncStatus) {
+      return res.status(404).json({
+        success: false,
+        message: "No sync status found for this project",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: syncStatus,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get sync status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get sync status by sync ID
+ */
+const getSyncStatusByIdController = async (req, res) => {
+  try {
+    const { syncId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(syncId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid sync id",
+      });
+    }
+
+    const syncStatus = await getSyncStatusById(syncId);
+    
+    if (!syncStatus) {
+      return res.status(404).json({
+        success: false,
+        message: "Sync status not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: syncStatus,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get sync status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get sync history for a project
+ */
+const getProjectSyncHistory = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { limit = 10 } = req.query;
+    
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project id",
+      });
+    }
+
+    const history = await getSyncHistory(projectId, parseInt(limit, 10));
+
+    return res.status(200).json({
+      success: true,
+      data: history,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get sync history",
       error: error.message,
     });
   }
@@ -136,4 +250,7 @@ module.exports = {
   listDocumentsByProject,
   analyzeDocument,
   analyzeRepository,
+  getProjectSyncStatus,
+  getSyncStatusByIdController,
+  getProjectSyncHistory,
 };

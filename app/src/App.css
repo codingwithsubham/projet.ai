@@ -611,6 +611,16 @@ span.app-navbar__icon {
   color: #111;
 }
 
+.projects-btn--outline {
+  background: transparent;
+  color: #111;
+  border: 1px solid #d8d8d8;
+}
+
+.projects-btn--outline:hover {
+  background: #f5f5f5;
+}
+
 .projects-btn--tiny {
   height: 30px;
   font-size: 12px;
@@ -1162,6 +1172,69 @@ button.projects-btn.icon-btn {
   margin-bottom: 12px;
 }
 
+/* Sync Progress Styles */
+.kb-sync-progress {
+  margin-top: 12px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.kb-sync-progress__bar {
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.kb-sync-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.kb-sync-progress__info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.kb-sync-progress__step {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 8px;
+}
+
+.kb-sync-progress__percent {
+  font-weight: 500;
+  color: #007bff;
+}
+
+.kb-sync-status {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.kb-sync-status--success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.kb-sync-status--error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
 .chat-layout {
   display: grid;
   grid-template-columns: 0 1fr;
@@ -1243,7 +1316,9 @@ button.projects-btn.icon-btn {
   padding: 4px;
   border-radius: 4px;
   opacity: 0.6;
-  transition: opacity 0.2s, background-color 0.2s;
+  transition:
+    opacity 0.2s,
+    background-color 0.2s;
 }
 
 .chat-history__delete-btn:hover {
@@ -1658,10 +1733,10 @@ span.app-navbar__icon.role {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255,255,255,0.95);
+  background: rgba(255, 255, 255, 0.95);
   padding: 6px 10px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .chat-page__floating-select select {
@@ -1740,6 +1815,7 @@ span.app-navbar__icon.role {
   border-radius: 8px;
   background: #fff;
   margin: 8px;
+  flex-direction: column;
 }
 
 .chat-page__empty p {
@@ -1769,4 +1845,8 @@ span.app-navbar__icon.role {
 .project-info-value {
   color: #111;
   font-size: 14px;
+}
+
+.kb-message--error span {
+  overflow-wrap: anywhere;
 }

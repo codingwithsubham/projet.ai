@@ -15,7 +15,7 @@ export const useProjectChat = (projectId) => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
 
   const loadHistory = useCallback(async (sessionId) => {

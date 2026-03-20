@@ -49,6 +49,7 @@ const ChatPage = () => {
         </div>
       ) : (
         <div className="chat-page__empty">
+          <h1>🤖</h1>
           <p>Select a project to start chatting with the AI agent.</p>
         </div>
       )}
@@ -58,7 +59,12 @@ const ChatPage = () => {
         <div className="chat-full-screen-overlay">
           <div className="chat-header">
             <h4>🚀 Pro-jet.ai</h4>
-            <div className="chat-full-view-close" onClick={() => setIsFullView(false)}>✖</div>
+            <div
+              className="chat-full-view-close"
+              onClick={() => setIsFullView(false)}
+            >
+              ✖
+            </div>
           </div>
           <ChatPanel projectId={selectedProjectId} />
         </div>

@@ -2,7 +2,7 @@ const ChatSession = require("../models/ChatSessionModel");
 const {
   coreOrchastrator,
   maybeStartAsyncImplementation,
-} = require("./core-agent.service");
+} = require("../orchestration/core-agent.service");
 const {
   toText,
   buildRagContext,

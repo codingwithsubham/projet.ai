@@ -3,6 +3,7 @@ const { CheerioWebBaseLoader } = require("@langchain/community/document_loaders/
 const { GithubRepoLoader } = require("@langchain/community/document_loaders/web/github");
 const { getPineconeIndex } = require("../config/pinecone");
 const projectService = require("../services/project.service");
+const SyncStatus = require("../models/SyncStatusModel");
 
 /**
  * Load and split a web document from URL
@@ -148,7 +149,7 @@ const generateAndStoreEmbeddings = async ({ url, projectId }) => {
 
     console.log(`📤 Upserting ${records.length} records with Pinecone integrated embeddings...`);
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 96; // Pinecone integrated embeddings limit
     const target = index.namespace(namespace);
     for (let i = 0; i < records.length; i += BATCH_SIZE) {
       const batch = records.slice(i, i + BATCH_SIZE);
@@ -177,15 +178,29 @@ const generateAndStoreEmbeddings = async ({ url, projectId }) => {
 };
 
 /**
- * Sync a GitHub codebase to Pinecone.
+ * Sync a GitHub codebase to Pinecone (synchronous version).
  * Uses file path as unique identifier for incremental updates.
+ * @param {Object} options
+ * @param {string} options.projectId - The project ID
+ * @param {Object} [options.syncStatus] - Optional SyncStatus document to update progress
  */
-const syncCodebase = async ({ projectId }) => {
+const syncCodebase = async ({ projectId, syncStatus = null }) => {
   console.log(`\n🔄 syncCodebase started for project: ${projectId}`);
   
   if (!projectId) {
     throw new Error("projectId is required");
   }
+  
+  // Helper to update progress if syncStatus is provided
+  const updateProgress = async (step, percentage) => {
+    if (syncStatus) {
+      try {
+        await syncStatus.updateProgress(step, percentage);
+      } catch (e) {
+        console.warn("Failed to update sync progress:", e.message);
+      }
+    }
+  };
   
   // 1. Get project details from DB
   const project = await projectService.getProjectById(projectId);
@@ -200,6 +215,8 @@ const syncCodebase = async ({ projectId }) => {
   console.log(`📦 Repository: ${project.repolink}`);
   console.log(`🔑 PAT Token: ${project.pat_token ? "configured" : "not configured"}`);
   
+  await updateProgress("Loading repository from GitHub...", 5);
+  
   try {
     // 2. Load and split the repository
     const splitDocs = await loadGithubRepo(
@@ -208,9 +225,11 @@ const syncCodebase = async ({ projectId }) => {
       "main"
     );
     
+    await updateProgress("Processing repository files...", 30);
+    
     if (!splitDocs.length) {
       console.log("⚠️ No content found in repository");
-      return { success: true, inserted: 0, updated: 0, deleted: 0, skipped: 0 };
+      return { success: true, inserted: 0, updated: 0, deleted: 0, skipped: 0, totalFiles: 0, totalChunks: 0 };
     }
     
     // 3. Add metadata to each chunk
@@ -224,6 +243,8 @@ const syncCodebase = async ({ projectId }) => {
       },
     }));
     
+    await updateProgress("Clearing existing vectors...", 40);
+    
     // 4. Clear existing codebase vectors for this project (full sync)
     const index = getPineconeIndex();
     const namespace = `project-${projectId}`;
@@ -236,6 +257,8 @@ const syncCodebase = async ({ projectId }) => {
     } catch (deleteErr) {
       console.log(`ℹ️ No existing codebase vectors to delete`);
     }
+    
+    await updateProgress("Preparing records for embedding...", 50);
     
     // 5. Upsert records using Pinecone integrated embeddings
     const now = Date.now();
@@ -259,20 +282,32 @@ const syncCodebase = async ({ projectId }) => {
 
     console.log(`📤 Upserting ${records.length} records with Pinecone integrated embeddings...`);
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 96; // Pinecone integrated embeddings limit
     const target = index.namespace(namespace);
+    const totalBatches = Math.ceil(records.length / BATCH_SIZE);
+    
     for (let i = 0; i < records.length; i += BATCH_SIZE) {
       const batch = records.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      
       if (!batch.length) {
         console.log(`   ⚠️ Skipping empty batch at ${i}`);
         continue;
       }
-      console.log(`   ⤴ Upserting batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)} - size=${batch.length}, firstId=${batch[0]?._id}`);
+      
+      // Calculate progress: 50% base + up to 45% for batches (leaving 5% for completion)
+      const batchProgress = 50 + Math.floor((batchNum / totalBatches) * 45);
+      await updateProgress(`Embedding batch ${batchNum}/${totalBatches}...`, batchProgress);
+      
+      console.log(`   ⤴ Upserting batch ${batchNum}/${totalBatches} - size=${batch.length}, firstId=${batch[0]?._id}`);
       await target.upsertRecords({ records: batch });
-      console.log(`   ✅ Upserted batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`);
+      console.log(`   ✅ Upserted batch ${batchNum}/${totalBatches}`);
     }
     
     console.log(`✅ Stored ${records.length} records in Pinecone`);
+    
+    // Count unique files from source metadata
+    const uniqueFiles = new Set(docsWithMetadata.map(d => d.metadata.source).filter(Boolean));
     
     return {
       success: true,
@@ -280,11 +315,93 @@ const syncCodebase = async ({ projectId }) => {
       updated: 0,
       deleted: 0,
       skipped: docsWithMetadata.length - records.length,
+      totalFiles: uniqueFiles.size,
+      totalChunks: records.length,
     };
   } catch (err) {
     console.error("❌ syncCodebase failed:", err);
     throw err;
   }
+};
+
+/**
+ * Start async codebase sync - returns immediately with sync status ID.
+ * The actual sync runs in the background.
+ * @param {string} projectId - The project ID
+ * @returns {Promise<{syncId: string, status: string, message: string}>}
+ */
+const syncCodebaseAsync = async (projectId) => {
+  console.log(`\n🚀 syncCodebaseAsync initiated for project: ${projectId}`);
+  
+  if (!projectId) {
+    throw new Error("projectId is required");
+  }
+  
+  // Check if sync is already in progress
+  const isInProgress = await SyncStatus.isSyncInProgress(projectId, "codebase");
+  if (isInProgress) {
+    const existingSync = await SyncStatus.getLatestByProject(projectId, "codebase");
+    return {
+      syncId: existingSync._id.toString(),
+      status: existingSync.status,
+      message: "A sync operation is already in progress for this project",
+      alreadyRunning: true,
+    };
+  }
+  
+  // Validate project exists and has repo configured
+  const project = await projectService.getProjectById(projectId);
+  if (!project) {
+    throw new Error(`Project not found: ${projectId}`);
+  }
+  
+  if (!project.repolink) {
+    throw new Error("Project does not have a repository link configured");
+  }
+  
+  // Create sync status record
+  const syncStatus = await SyncStatus.create({
+    project_id: projectId,
+    syncType: "codebase",
+    status: "pending",
+    description: `Syncing repository: ${project.repolink}`,
+    repoInfo: {
+      url: project.repolink,
+      branch: "main",
+    },
+  });
+  
+  console.log(`📋 Created sync status: ${syncStatus._id}`);
+  
+  // Start the sync in the background (don't await)
+  setImmediate(async () => {
+    try {
+      await syncStatus.markInProgress("Initializing sync...");
+      
+      const result = await syncCodebase({ projectId, syncStatus });
+      
+      await syncStatus.markCompleted({
+        totalFiles: result.totalFiles || 0,
+        totalChunks: result.totalChunks || 0,
+        inserted: result.inserted,
+        updated: result.updated,
+        deleted: result.deleted,
+        skipped: result.skipped,
+      });
+      
+      console.log(`✅ Async sync completed for project: ${projectId}`);
+    } catch (err) {
+      console.error(`❌ Async sync failed for project: ${projectId}`, err);
+      await syncStatus.markFailed(err);
+    }
+  });
+  
+  return {
+    syncId: syncStatus._id.toString(),
+    status: "pending",
+    message: "Repository sync started. Use the sync status endpoint to track progress.",
+    alreadyRunning: false,
+  };
 };
 
 /**
@@ -323,5 +440,6 @@ const queryVectors = async ({ projectId, query, topK = 5 }) => {
 module.exports = {
   generateAndStoreEmbeddings,
   syncCodebase,
+  syncCodebaseAsync,
   queryVectors,
 };

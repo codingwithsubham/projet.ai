@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useAppData } from "../context/AppDataContext";
 import {
   uploadKnowledgeDocumentApi,
   getKnowledgeDocumentsByProjectApi,
   analyzeKnowledgeDocumentApi,
   analyzeKnowledgeRepositoryApi,
+  getSyncStatusByIdApi,
+  getSyncStatusByProjectApi,
 } from "../services/knowledgebase.api";
 
 export const useKnowledgebase = (projectId) => {
@@ -23,11 +25,25 @@ export const useKnowledgebase = (projectId) => {
   const [repoLinkInput, setRepoLinkInput] = useState("");
   const [savedRepoLink, setSavedRepoLink] = useState("");
   const [repoLoading, setRepoLoading] = useState(false);
+  const [isRepoEditing, setIsRepoEditing] = useState(false);
 
   const [patTokenInput, setPatTokenInput] = useState("");
   const [savedPatToken, setSavedPatToken] = useState("");
   const [patLoading, setPatLoading] = useState(false);
   const [isPatEditing, setIsPatEditing] = useState(false);
+
+  // Sync status state for async repository analysis
+  const [syncStatus, setSyncStatus] = useState(null);
+  const pollIntervalRef = useRef(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   const maskPat = useCallback((token = "") => {
     const val = String(token || "");
@@ -68,10 +84,69 @@ export const useKnowledgebase = (projectId) => {
     setIsPatEditing(false);
   }, [getProjectById, maskPat, projectId]);
 
+  // Load existing sync status on mount
+  const loadSyncStatus = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await getSyncStatusByProjectApi(projectId, "codebase");
+      const data = res?.data;
+      
+      if (data) {
+        setSyncStatus({
+          syncId: data.syncId,
+          status: data.status,
+          progress: data.progress || { currentStep: "", percentage: 0 },
+          stats: data.stats,
+          error: data.error,
+        });
+
+        // If sync is in progress, start polling
+        if (data.status === "pending" || data.status === "in_progress") {
+          setRepoLoading(true);
+          pollIntervalRef.current = setInterval(async () => {
+            try {
+              const statusRes = await getSyncStatusByIdApi(data.syncId);
+              const statusData = statusRes?.data;
+              
+              if (!statusData) return;
+
+              setSyncStatus({
+                syncId: statusData.syncId,
+                status: statusData.status,
+                progress: statusData.progress || { currentStep: "", percentage: 0 },
+                stats: statusData.stats,
+                error: statusData.error,
+              });
+
+              if (statusData.status === "completed" || statusData.status === "failed") {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+                setRepoLoading(false);
+
+                if (statusData.status === "completed") {
+                  const stats = statusData.stats || {};
+                  setUiMessage({
+                    type: "success",
+                    text: `Repository sync completed! Indexed ${stats.totalChunks || 0} chunks from ${stats.totalFiles || 0} files.`,
+                  });
+                }
+              }
+            } catch (pollErr) {
+              console.error("Polling error:", pollErr);
+            }
+          }, 2000);
+        }
+      }
+    } catch (err) {
+      // Ignore - no sync status exists yet
+    }
+  }, [projectId]);
+
   useEffect(() => {
     fetchDocs();
     loadProjectRepo();
-  }, [fetchDocs, loadProjectRepo]);
+    loadSyncStatus();
+  }, [fetchDocs, loadProjectRepo, loadSyncStatus]);
 
   const saveRepoLink = useCallback(async () => {
     if (!projectId) return { ok: false, error: "Invalid project id" };
@@ -92,9 +167,20 @@ export const useKnowledgebase = (projectId) => {
     const link = res?.data?.repolink || repoLinkInput.trim();
     setSavedRepoLink(link);
     setRepoLinkInput(link);
+    setIsRepoEditing(false);
     setUiMessage({ type: "success", text: "Repository link saved successfully" });
     return { ok: true, data: res.data };
   }, [projectId, repoLinkInput, saveProjectRepo]);
+
+  const startEditRepo = useCallback(() => {
+    setIsRepoEditing(true);
+    setRepoLinkInput(savedRepoLink);
+  }, [savedRepoLink]);
+
+  const cancelEditRepo = useCallback(() => {
+    setIsRepoEditing(false);
+    setRepoLinkInput(savedRepoLink);
+  }, [savedRepoLink]);
 
   const analyzeRepo = useCallback(async () => {
     if (!projectId) return { ok: false, error: "Invalid project id" };
@@ -103,21 +189,84 @@ export const useKnowledgebase = (projectId) => {
       return { ok: false };
     }
 
+    // Stop any existing polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
     try {
       setRepoLoading(true);
       const res = await analyzeKnowledgeRepositoryApi(projectId);
-      setUiMessage({
-        type: "success",
-        text: res?.message || "Repository analysis started",
+      const syncId = res?.data?.syncId;
+      
+      if (!syncId) {
+        setUiMessage({ type: "error", text: "Failed to start repository sync" });
+        setRepoLoading(false);
+        return { ok: false };
+      }
+
+      // If already running, show message
+      if (res?.data?.alreadyRunning) {
+        setUiMessage({ type: "info", text: "A sync is already in progress" });
+      } else {
+        setUiMessage({ type: "info", text: "Repository sync started..." });
+      }
+
+      // Initialize sync status
+      setSyncStatus({
+        syncId,
+        status: res?.data?.status || "pending",
+        progress: { currentStep: "Starting...", percentage: 0 },
       });
+
+      // Start polling for sync status
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await getSyncStatusByIdApi(syncId);
+          const data = statusRes?.data;
+          
+          if (!data) return;
+
+          setSyncStatus({
+            syncId: data.syncId,
+            status: data.status,
+            progress: data.progress || { currentStep: "", percentage: 0 },
+            stats: data.stats,
+            error: data.error,
+          });
+
+          // Stop polling on completion or failure
+          if (data.status === "completed" || data.status === "failed") {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setRepoLoading(false);
+
+            if (data.status === "completed") {
+              const stats = data.stats || {};
+              setUiMessage({
+                type: "success",
+                text: `Repository sync completed! Indexed ${stats.totalChunks || 0} chunks from ${stats.totalFiles || 0} files.`,
+              });
+            } else {
+              setUiMessage({
+                type: "error",
+                text: data.error?.message || "Repository sync failed",
+              });
+            }
+          }
+        } catch (pollErr) {
+          console.error("Polling error:", pollErr);
+        }
+      }, 2000); // Poll every 2 seconds
+
       return { ok: true, data: res?.data };
     } catch (err) {
       const message =
         err?.response?.data?.message || err?.message || "Failed to analyze repository";
       setUiMessage({ type: "error", text: message });
-      return { ok: false, error: message };
-    } finally {
       setRepoLoading(false);
+      return { ok: false, error: message };
     }
   }, [projectId, savedRepoLink]);
 
@@ -252,6 +401,9 @@ export const useKnowledgebase = (projectId) => {
     repoLoading,
     saveRepoLink,
     analyzeRepo,
+    isRepoEditing,
+    startEditRepo,
+    cancelEditRepo,
 
     // PAT token exports
     patTokenInput,
@@ -261,5 +413,8 @@ export const useKnowledgebase = (projectId) => {
     isPatEditing,
     startEditPat,
     savePatToken,
+
+    // Sync status exports
+    syncStatus,
   };
 };

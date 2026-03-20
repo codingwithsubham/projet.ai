@@ -20,4 +20,9 @@ router.get("/documents/project/:projectId", knowledgebaseController.listDocument
 router.post("/documents/:docId/analyze", knowledgebaseController.analyzeDocument);
 router.post("/projects/:projectId/analyze-repo", knowledgebaseController.analyzeRepository);
 
+// Sync status endpoints
+router.get("/sync-status/project/:projectId", knowledgebaseController.getProjectSyncStatus);
+router.get("/sync-status/:syncId", knowledgebaseController.getSyncStatusByIdController);
+router.get("/sync-history/project/:projectId", knowledgebaseController.getProjectSyncHistory);
+
 module.exports = router;

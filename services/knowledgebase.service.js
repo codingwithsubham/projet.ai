@@ -1,7 +1,8 @@
 const Doc = require("../models/DocModel");
+const SyncStatus = require("../models/SyncStatusModel");
 const projectService = require("./project.service");
 const PUBLIC_BASE = "/public/uploads/knowledgebase";
-const { generateAndStoreEmbeddings, syncCodebase } = require("../helpers/embaddingHelpers")
+const { generateAndStoreEmbeddings, syncCodebase, syncCodebaseAsync } = require("../helpers/embaddingHelpers")
 
 const buildPublicUrl = (req, fileName) => {
   const host = req.get("host");
@@ -41,14 +42,99 @@ const analyzeKnowledgeRepository = async (projectId) => {
   const project = await projectService.getProjectById(projectId);
   if (!project) return null;
 
-  const result = await syncCodebase({ projectId });
-
-  if(!result.success) throw new Error("Failed to analyze repository");
+  // Use async version - returns immediately with sync status ID
+  const result = await syncCodebaseAsync(projectId);
 
   return {
     success: true,
-    message: `Repository sync completed. Added: ${result.inserted}, Updated: ${result.updated}, Deleted: ${result.deleted}, Skipped: ${result.skipped}.`,
+    syncId: result.syncId,
+    status: result.status,
+    message: result.message,
+    alreadyRunning: result.alreadyRunning || false,
   };
+};
+
+/**
+ * Get the current sync status for a project
+ * @param {string} projectId - The project ID
+ * @param {string} [syncType] - The sync type (default: "codebase")
+ * @returns {Promise<Object|null>} The sync status or null if not found
+ */
+const getSyncStatus = async (projectId, syncType = "codebase") => {
+  const syncStatus = await SyncStatus.getLatestByProject(projectId, syncType);
+  
+  if (!syncStatus) {
+    return null;
+  }
+  
+  return {
+    syncId: syncStatus._id.toString(),
+    projectId: syncStatus.project_id.toString(),
+    syncType: syncStatus.syncType,
+    status: syncStatus.status,
+    description: syncStatus.description,
+    startedAt: syncStatus.startedAt,
+    completedAt: syncStatus.completedAt,
+    progress: syncStatus.progress,
+    stats: syncStatus.stats,
+    error: syncStatus.error?.message ? syncStatus.error : null,
+    repoInfo: syncStatus.repoInfo,
+    createdAt: syncStatus.createdAt,
+    updatedAt: syncStatus.updatedAt,
+  };
+};
+
+/**
+ * Get sync status by sync ID
+ * @param {string} syncId - The sync status ID
+ * @returns {Promise<Object|null>} The sync status or null if not found
+ */
+const getSyncStatusById = async (syncId) => {
+  const syncStatus = await SyncStatus.findById(syncId);
+  
+  if (!syncStatus) {
+    return null;
+  }
+  
+  return {
+    syncId: syncStatus._id.toString(),
+    projectId: syncStatus.project_id.toString(),
+    syncType: syncStatus.syncType,
+    status: syncStatus.status,
+    description: syncStatus.description,
+    startedAt: syncStatus.startedAt,
+    completedAt: syncStatus.completedAt,
+    progress: syncStatus.progress,
+    stats: syncStatus.stats,
+    error: syncStatus.error?.message ? syncStatus.error : null,
+    repoInfo: syncStatus.repoInfo,
+    createdAt: syncStatus.createdAt,
+    updatedAt: syncStatus.updatedAt,
+  };
+};
+
+/**
+ * Get sync history for a project
+ * @param {string} projectId - The project ID
+ * @param {number} [limit] - Maximum number of records to return
+ * @returns {Promise<Array>} Array of sync status records
+ */
+const getSyncHistory = async (projectId, limit = 10) => {
+  const syncStatuses = await SyncStatus.find({ project_id: projectId })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+  
+  return syncStatuses.map(s => ({
+    syncId: s._id.toString(),
+    syncType: s.syncType,
+    status: s.status,
+    description: s.description,
+    startedAt: s.startedAt,
+    completedAt: s.completedAt,
+    stats: s.stats,
+    error: s.error?.message ? s.error : null,
+    createdAt: s.createdAt,
+  }));
 };
 
 module.exports = {
@@ -56,4 +142,7 @@ module.exports = {
   getKnowledgeDocumentsByProjectId,
   analyzeKnowledgeDocument,
   analyzeKnowledgeRepository,
+  getSyncStatus,
+  getSyncStatusById,
+  getSyncHistory,
 };

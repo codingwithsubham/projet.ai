@@ -24,6 +24,9 @@ const KnowledgebasePanel = ({ projectId }) => {
     repoLoading,
     saveRepoLink,
     analyzeRepo,
+    isRepoEditing,
+    startEditRepo,
+    cancelEditRepo,
     patTokenInput,
     setPatTokenInput,
     savedPatToken,
@@ -31,6 +34,7 @@ const KnowledgebasePanel = ({ projectId }) => {
     isPatEditing,
     startEditPat,
     savePatToken,
+    syncStatus,
   } = useKnowledgebase(projectId);
 
   const onDrop = (e) => {
@@ -97,23 +101,82 @@ const KnowledgebasePanel = ({ projectId }) => {
               value={repoLinkInput}
               onChange={(e) => setRepoLinkInput(e.target.value)}
               placeholder="https://github.com/org/repo"
-              disabled={Boolean(savedRepoLink)}
+              disabled={Boolean(savedRepoLink) && !isRepoEditing}
             />
-            {!savedRepoLink ? (
-              <button type="button" className="projects-btn" onClick={saveRepoLink} disabled={repoLoading}>
-                {repoLoading ? "Saving..." : "Save Repo"}
-              </button>
+            {!savedRepoLink || isRepoEditing ? (
+              <>
+                <button 
+                  type="button" 
+                  className="projects-btn" 
+                  onClick={saveRepoLink} 
+                  disabled={repoLoading}
+                >
+                  {repoLoading ? "Saving..." : savedRepoLink ? "Update Repo" : "Save Repo"}
+                </button>
+                {isRepoEditing && (
+                  <button 
+                    type="button" 
+                    className="projects-btn projects-btn--secondary" 
+                    onClick={cancelEditRepo}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </>
             ) : (
-              <button
-                type="button"
-                className="projects-btn projects-btn--secondary"
-                onClick={analyzeRepo}
-                disabled={repoLoading}
-              >
-                {repoLoading ? "Analyzing..." : "Analyze Repo"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="projects-btn projects-btn--secondary"
+                  onClick={analyzeRepo}
+                  disabled={repoLoading}
+                >
+                  {repoLoading ? "Syncing..." : "Analyze Repo"}
+                </button>
+                <button
+                  type="button"
+                  className="projects-btn projects-btn--outline"
+                  onClick={startEditRepo}
+                  disabled={repoLoading}
+                >
+                  Edit
+                </button>
+              </>
             )}
           </div>
+          
+          {/* Sync Progress Indicator */}
+          {syncStatus && (syncStatus.status === "pending" || syncStatus.status === "in_progress") && (
+            <div className="kb-sync-progress">
+              <div className="kb-sync-progress__bar">
+                <div 
+                  className="kb-sync-progress__fill" 
+                  style={{ width: `${syncStatus.progress?.percentage || 0}%` }}
+                />
+              </div>
+              <div className="kb-sync-progress__info">
+                <span className="kb-sync-progress__step">
+                  {syncStatus.progress?.currentStep || "Starting..."}
+                </span>
+                <span className="kb-sync-progress__percent">
+                  {syncStatus.progress?.percentage || 0}%
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* Last Sync Status */}
+          {syncStatus && syncStatus.status === "completed" && syncStatus.stats && (
+            <div className="kb-sync-status kb-sync-status--success">
+              Last sync: {syncStatus.stats.totalChunks || 0} chunks from {syncStatus.stats.totalFiles || 0} files
+            </div>
+          )}
+          
+          {syncStatus && syncStatus.status === "failed" && (
+            <div className="kb-sync-status kb-sync-status--error">
+              Last sync failed: {syncStatus.error?.message || "Unknown error"}
+            </div>
+          )}
         </div>
 
         <div className="kb-repo-box">

@@ -33,7 +33,7 @@ const Landing = () => {
     <div className="landing-card">
       <aside className="landing-left">
         <div className="brand-wrap">
-          <h1>Pro-jet.ai 🚀</h1>
+          <h1>PwC Pro-jet.ai 🚀</h1>
           <p>
             Manage your <b>Projects</b> with the power of <b>AI Agents</b>
             <br />

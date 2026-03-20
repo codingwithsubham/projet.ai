@@ -1,15 +1,13 @@
-const projectService = require("./project.service");
+const projectService = require("../services/project.service");
 const { agentParser } = require("../openai");
 const { createDynamicAgent } = require("../z-agents");
 const {
   getOrCreateSession,
-  buildRecentChatMessages,
   buildExecutionDirective,
   buildRagContext,
   buildUserMessage,
   toText,
   buildSessionTitle,
-  MAX_PREVIOUS_CONVERSATIONS,
 } = require("../helpers/chat.helpers");
 const {
   buildSystemPrompt,
@@ -122,12 +120,10 @@ const coreOrchastrator = async ({
       userId,
       isAdmin,
     });
-    const recentChatMessages = buildRecentChatMessages(
-      session?.chats,
-      MAX_PREVIOUS_CONVERSATIONS,
-    );
+    
+    // Use session.chats for confirmation check (LangGraph handles full history via checkpointer)
     const executionDirective = buildExecutionDirective({
-      recentChatMessages,
+      recentChatMessages: session?.chats || [],
       currentUserMessage: cleanMessage,
     });
 
@@ -151,12 +147,12 @@ const coreOrchastrator = async ({
       {
         messages: [
           { role: "system", content: systemPrompt },
-          ...recentChatMessages,
           { role: "user", content: userPrompt },
         ],
       },
       {
         recursionLimit: resolveGraphRecursionLimit(),
+        configurable: { thread_id: String(session._id) },
       },
     );
 
@@ -208,11 +204,6 @@ const runAgentInBackground = async ({
       isAdmin,
     });
 
-    const recentChatMessages = buildRecentChatMessages(
-      session?.chats,
-      MAX_PREVIOUS_CONVERSATIONS,
-    );
-
     const executionDirective = [
       "Execution Directive:",
       "Proceed immediately with implementation using available MCP tools.",
@@ -238,12 +229,12 @@ const runAgentInBackground = async ({
       {
         messages: [
           { role: "system", content: systemPrompt },
-          ...recentChatMessages,
           { role: "user", content: userPrompt },
         ],
       },
       {
         recursionLimit: resolveGraphRecursionLimit(),
+        configurable: { thread_id: sessionId },
       },
     );
 

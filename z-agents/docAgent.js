@@ -1,4 +1,4 @@
-const { llmAgent } = require("../openai");
+const { createLlmForProject } = require("../openai");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 const { buildRagContext } = require("../helpers/chat.helpers");
 const documentService = require("../services/document.service");
@@ -6,7 +6,7 @@ const documentService = require("../services/document.service");
 /**
  * Step 1: Plan the document - outline sections
  */
-const planDocument = async (prompt, ragContext) => {
+const planDocument = async (prompt, ragContext, llm) => {
   console.log(`\n📋 Planning document for: ${prompt.substring(0, 50)}`);
 
   const systemPrompt = `You are a professional document strategist. Return ONLY valid JSON, no markdown.`;
@@ -35,7 +35,7 @@ Rules:
 - Section titles should be clear and descriptive
 - KeyPoints should be actual content that will be expanded into prose`;
 
-  const response = await llmAgent.invoke([
+  const response = await llm.invoke([
     new SystemMessage(systemPrompt),
     new HumanMessage(userPrompt),
   ]);
@@ -68,6 +68,7 @@ const generateSection = async ({
   isIntro = false,
   isConclusion = false,
   summary = "",
+  llm,
 }) => {
   console.log(`\n✍️  Generating section: ${sectionTitle}`);
 
@@ -111,7 +112,7 @@ ${contextText}
 - FORBIDDEN: Lorem ipsum, placeholder text, generic filler`;
   }
 
-  const response = await llmAgent.invoke([
+  const response = await llm.invoke([
     new SystemMessage(systemPrompt),
     new HumanMessage(instruction),
   ]);
@@ -130,6 +131,9 @@ const processDocumentRequest = async ({ documentId, name, prompt, project }) => 
     console.log(`   Name: ${name}`);
     console.log(`   Topic: ${prompt.substring(0, 50)}...`);
 
+    // Create LLM for this project
+    const llm = createLlmForProject(project);
+
     // Step 1: RAG context
     let ragContext = "";
     if (project) {
@@ -138,7 +142,7 @@ const processDocumentRequest = async ({ documentId, name, prompt, project }) => 
 
     // Step 2: Plan
     await documentService.updateDocumentProgress(documentId, "Planning document structure...");
-    const plan = await planDocument(prompt, ragContext);
+    const plan = await planDocument(prompt, ragContext, llm);
     console.log(`\n📝 Plan:`, JSON.stringify(plan, null, 2));
 
     // Step 3: Build full markdown - start with title and intro
@@ -150,6 +154,7 @@ const processDocumentRequest = async ({ documentId, name, prompt, project }) => 
       isIntro: true,
       documentTopic: prompt,
       summary: plan.summary,
+      llm,
     });
     fullMarkdown += introMd + "\n\n---\n\n";
 
@@ -163,6 +168,7 @@ const processDocumentRequest = async ({ documentId, name, prompt, project }) => 
         keyPoints: section.keyPoints || [],
         ragContext,
         documentTopic: prompt,
+        llm,
       });
       fullMarkdown += sectionMd + "\n\n---\n\n";
     }
@@ -173,6 +179,7 @@ const processDocumentRequest = async ({ documentId, name, prompt, project }) => 
       sectionTitle: "Conclusion",
       isConclusion: true,
       documentTopic: prompt,
+      llm,
     });
     fullMarkdown += conclusionMd + "\n";
 

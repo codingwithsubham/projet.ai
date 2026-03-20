@@ -1,4 +1,4 @@
-const { llmAgent } = require("../openai");
+const { createLlmForProject } = require("../openai");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 const { buildRagContext } = require("../helpers/chat.helpers");
 const presentationService = require("../services/presentation.service");
@@ -8,9 +8,10 @@ const presentationService = require("../services/presentation.service");
  * @param {string} prompt - User's topic/prompt
  * @param {string} ragContext - Context from knowledge base
  * @param {number} numberOfPages - Number of content slides (1-5)
+ * @param {object} llm - LLM instance for the project
  * @returns {object} { introText, slideTopics: [{title, type, keyPoints}] }
  */
-const planPresentation = async (prompt, ragContext, numberOfPages) => {
+const planPresentation = async (prompt, ragContext, numberOfPages, llm) => {
   console.log(`\n📋 Planning presentation: ${numberOfPages} slides`);
 
   const systemPrompt = `You are a presentation content strategist. Return ONLY valid JSON, no markdown.`;
@@ -41,7 +42,7 @@ Rules:
 - Titles should be SHORT and engaging (3-6 words max)
 - KeyPoints should be actual content that can be expanded`;
 
-  const response = await llmAgent.invoke([
+  const response = await llm.invoke([
     new SystemMessage(systemPrompt),
     new HumanMessage(userPrompt),
   ]);
@@ -76,7 +77,8 @@ const generateSlide = async ({
   isConclusion = false,
   introText = "",
   presentationName = "",
-  presentationTopic = ""
+  presentationTopic = "",
+  llm,
 }) => {
   const slideDesc = isIntro ? "Cover" : isConclusion ? "Conclusion" : slideType;
   console.log(`\n🎨 Generating ${slideDesc} slide: ${slideTitle}`);
@@ -153,7 +155,7 @@ ${contextText}
     new HumanMessage(`${contentInstruction}\n\nGenerate 1280x720px slide. Output ONLY <section> tag with inline styles.`)
   ];
 
-  const response = await llmAgent.invoke(messages);
+  const response = await llm.invoke(messages);
   let html = (response.content || "").replace(/```html?\n?/gi, "").replace(/```\n?/gi, "").trim();
 
   if (!html.toLowerCase().includes("<section")) {
@@ -207,6 +209,9 @@ const processPresentationRequest = async ({
     console.log(`   Topic: ${prompt.substring(0, 50)}...`);
     console.log(`   Pages: ${numberOfPages}`);
 
+    // Create LLM for this project
+    const llm = createLlmForProject(project);
+
     // Step 1: Get RAG context
     let ragContext = "";
     if (project) {
@@ -215,7 +220,7 @@ const processPresentationRequest = async ({
 
     // Step 2: Plan presentation
     await presentationService.updatePresentationProgress(presentationId, "Planning presentation...");
-    const plan = await planPresentation(prompt, ragContext, numberOfPages);
+    const plan = await planPresentation(prompt, ragContext, numberOfPages, llm);
     console.log(`\n📝 Plan:`, JSON.stringify(plan, null, 2));
 
     // Step 3: Generate Cover Slide (use short name, not full prompt)
@@ -226,6 +231,7 @@ const processPresentationRequest = async ({
       isIntro: true,
       introText: plan.introText,
       presentationName: name,
+      llm,
     });
     await presentationService.addSlideToPresentation(presentationId, {
       slideName: "Cover",
@@ -247,6 +253,7 @@ const processPresentationRequest = async ({
         ragContext,
         keyPoints: topic.keyPoints || [],
         presentationTopic: prompt,
+        llm,
       });
 
       await presentationService.addSlideToPresentation(presentationId, {
@@ -265,6 +272,7 @@ const processPresentationRequest = async ({
       slideType: "conclusion",
       isConclusion: true,
       presentationTopic: prompt,
+      llm,
     });
     await presentationService.addSlideToPresentation(presentationId, {
       slideName: "Conclusion",
