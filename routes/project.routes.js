@@ -11,4 +11,11 @@ router.patch("/:id/repo", projectController.saveProjectRepo);
 router.patch("/:id/pat-token", projectController.saveProjectPatToken);
 router.delete("/:id", projectController.deleteProjectById);
 
+// Repository management routes
+router.get("/:id/repositories", projectController.getRepositories);
+router.post("/:id/repositories", projectController.addRepository);
+router.get("/:id/repositories/:repoId", projectController.getRepository);
+router.put("/:id/repositories/:repoId", projectController.updateRepository);
+router.delete("/:id/repositories/:repoId", projectController.deleteRepository);
+
 module.exports = router;

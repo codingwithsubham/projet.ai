@@ -17,8 +17,10 @@ export const analyzeKnowledgeDocumentApi = async (docId) => {
   return response.data;
 };
 
-export const analyzeKnowledgeRepositoryApi = async (projectId) => {
-  const response = await apiClient.post(`/knowledgebase/projects/${projectId}/analyze-repo`);
+export const analyzeKnowledgeRepositoryApi = async (projectId, repoId = null) => {
+  const response = await apiClient.post(`/knowledgebase/projects/${projectId}/analyze-repo`, {
+    repoId,
+  });
   return response.data;
 };
 

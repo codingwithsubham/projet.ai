@@ -132,6 +132,123 @@ const saveProjectPatTokenById = async (id, patToken) => {
   );
 };
 
+// ============ Repository Management Methods ============
+
+/**
+ * Add a repository to a project
+ * @param {string} projectId - Project ID
+ * @param {Object} repoData - Repository data { identifier, repolink, tag }
+ * @returns {Promise<Object>} Updated project
+ */
+const addRepository = async (projectId, repoData) => {
+  const { identifier, repolink, tag } = repoData;
+
+  if (!identifier?.trim() || !repolink?.trim()) {
+    throw new Error("Repository identifier and link are required");
+  }
+
+  const project = await Project.findById(projectId);
+  if (!project) return null;
+
+  // Check for duplicate identifier
+  const existingRepo = project.repositories.find(
+    (r) => r.identifier.toLowerCase() === identifier.trim().toLowerCase()
+  );
+  if (existingRepo) {
+    throw new Error(`Repository with identifier "${identifier}" already exists`);
+  }
+
+  project.repositories.push({
+    identifier: identifier.trim(),
+    repolink: repolink.trim(),
+    tag: tag || "backend",
+  });
+
+  await project.save();
+  return project;
+};
+
+/**
+ * Update a repository within a project
+ * @param {string} projectId - Project ID
+ * @param {string} repoId - Repository subdocument ID
+ * @param {Object} repoData - Updated repository data
+ * @returns {Promise<Object>} Updated project
+ */
+const updateRepository = async (projectId, repoId, repoData) => {
+  const project = await Project.findById(projectId);
+  if (!project) return null;
+
+  const repo = project.repositories.id(repoId);
+  if (!repo) {
+    throw new Error("Repository not found");
+  }
+
+  // Check for duplicate identifier (excluding current repo)
+  if (repoData.identifier) {
+    const duplicate = project.repositories.find(
+      (r) =>
+        r._id.toString() !== repoId &&
+        r.identifier.toLowerCase() === repoData.identifier.trim().toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(`Repository with identifier "${repoData.identifier}" already exists`);
+    }
+  }
+
+  if (repoData.identifier) repo.identifier = repoData.identifier.trim();
+  if (repoData.repolink) repo.repolink = repoData.repolink.trim();
+  if (repoData.tag) repo.tag = repoData.tag;
+
+  await project.save();
+  return project;
+};
+
+/**
+ * Delete a repository from a project
+ * @param {string} projectId - Project ID
+ * @param {string} repoId - Repository subdocument ID
+ * @returns {Promise<Object>} Updated project
+ */
+const deleteRepository = async (projectId, repoId) => {
+  const project = await Project.findById(projectId);
+  if (!project) return null;
+
+  const repo = project.repositories.id(repoId);
+  if (!repo) {
+    throw new Error("Repository not found");
+  }
+
+  project.repositories.pull(repoId);
+  await project.save();
+  return project;
+};
+
+/**
+ * Get a specific repository by ID
+ * @param {string} projectId - Project ID
+ * @param {string} repoId - Repository subdocument ID
+ * @returns {Promise<Object|null>} Repository object or null
+ */
+const getRepositoryById = async (projectId, repoId) => {
+  const project = await Project.findById(projectId);
+  if (!project) return null;
+
+  const repo = project.repositories.id(repoId);
+  return repo ? { ...repo.toObject(), pat_token: project.pat_token } : null;
+};
+
+/**
+ * Get all repositories for a project
+ * @param {string} projectId - Project ID
+ * @returns {Promise<Array>} List of repositories
+ */
+const getRepositoriesByProjectId = async (projectId) => {
+  const project = await Project.findById(projectId).select("repositories");
+  if (!project) return [];
+  return project.repositories || [];
+};
+
 module.exports = {
   createProject,
   getAllProjects,
@@ -140,4 +257,10 @@ module.exports = {
   deleteProjectById,
   saveProjectRepoById,
   saveProjectPatTokenById,
+  // Repository management
+  addRepository,
+  updateRepository,
+  deleteRepository,
+  getRepositoryById,
+  getRepositoriesByProjectId,
 };

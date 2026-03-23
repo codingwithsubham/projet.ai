@@ -7,6 +7,10 @@ import {
   deleteProjectApi,
   saveProjectRepoApi,
   saveProjectPatTokenApi,
+  getRepositoriesApi,
+  addRepositoryApi,
+  updateRepositoryApi,
+  deleteRepositoryApi,
 } from "../services/project.api";
 
 const AppDataContext = createContext(null);
@@ -126,6 +130,61 @@ export const AppDataProvider = ({ children }) => {
     }
   }, []);
 
+  // ============ Repository Management Methods ============
+
+  const getRepositories = useCallback(async (projectId) => {
+    try {
+      const res = await getRepositoriesApi(projectId);
+      return { ok: true, data: Array.isArray(res?.data) ? res.data : [] };
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to fetch repositories");
+      return { ok: false, error: message };
+    }
+  }, []);
+
+  const addRepository = useCallback(async (projectId, repoData) => {
+    try {
+      const res = await addRepositoryApi(projectId, repoData);
+      const repositories = res?.data;
+      // Update project in state with new repositories
+      setProjects((prev) =>
+        prev.map((p) => (p._id === projectId ? { ...p, repositories } : p))
+      );
+      return { ok: true, data: repositories };
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to add repository");
+      return { ok: false, error: message };
+    }
+  }, []);
+
+  const updateRepository = useCallback(async (projectId, repoId, repoData) => {
+    try {
+      const res = await updateRepositoryApi(projectId, repoId, repoData);
+      const repositories = res?.data;
+      setProjects((prev) =>
+        prev.map((p) => (p._id === projectId ? { ...p, repositories } : p))
+      );
+      return { ok: true, data: repositories };
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to update repository");
+      return { ok: false, error: message };
+    }
+  }, []);
+
+  const deleteRepository = useCallback(async (projectId, repoId) => {
+    try {
+      const res = await deleteRepositoryApi(projectId, repoId);
+      const repositories = res?.data;
+      setProjects((prev) =>
+        prev.map((p) => (p._id === projectId ? { ...p, repositories } : p))
+      );
+      return { ok: true, data: repositories };
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to delete repository");
+      return { ok: false, error: message };
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       projects,
@@ -138,6 +197,11 @@ export const AppDataProvider = ({ children }) => {
       deleteProjectById,
       saveProjectRepo,
       saveProjectPatToken,
+      // Repository management
+      getRepositories,
+      addRepository,
+      updateRepository,
+      deleteRepository,
     }),
     [
       projects,
@@ -150,6 +214,10 @@ export const AppDataProvider = ({ children }) => {
       deleteProjectById,
       saveProjectRepo,
       saveProjectPatToken,
+      getRepositories,
+      addRepository,
+      updateRepository,
+      deleteRepository,
     ]
   );
 

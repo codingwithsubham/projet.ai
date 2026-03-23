@@ -1,89 +1,24 @@
 const { RULE_PACKS } = require("../common/ai-constants");
+const { RAG_INTENTS } = require("../common/rag-constants");
+const { classifyIntentSync } = require("./intentClassifier");
+const { 
+  parseOwnerRepo, 
+  buildRepositoryPromptSection 
+} = require("./repoPromptBuilder");
 
-const READ_KEYWORDS = [
-  "list",
-  "show",
-  "describe",
-  "summarize",
-  "summary",
-  "get details",
-  "fetch",
-  "read",
-  "status",
-  "issues",
-  "pull requests",
-  "prs",
-  "branches",
-  "chart",
-  "graph",
-  "diagram",
-  "visualize",
-];
-
-const WRITE_KEYWORDS = [
-  "create",
-  "update",
-  "push",
-  "generate",
-  "add",
-  "plan",
-  "sprint",
-  "milestone",
-  "epic",
-  "story",
-  "bug",
-  "task",
-  "chart",
-  "graph",
-  "diagram",
-  "visualize",
-];
-
-const IMPLEMENTATION_KEYWORDS = [
-  "implement",
-  "build",
-  "develop",
-  "write code",
-  "fix",
-  "resolve",
-  "create pr",
-  "open pr",
-  "branch",
-  "feature",
-];
-
-const containsAny = (text, keywords) =>
-  keywords.some((keyword) => text.includes(keyword));
-
-const parseOwnerRepo = (repolink) => {
-  const cleaned = String(repolink || "").replace(/\.git$/, "").replace(/\/$/, "");
-  const match = cleaned.match(/github\.com[/:]([^/]+)\/([^/]+)/);
-  if (match) return { owner: match[1], repo: match[2] };
-  return null;
-};
-
+/**
+ * Resolve intent for a query (sync version)
+ * Uses the hybrid classifier's keyword-only mode for backward compatibility
+ * 
+ * @deprecated Use classifyIntent from intentClassifier for async + LLM fallback
+ */
 const resolveIntent = ({ agentType, message, forceIntent = null }) => {
+  // If forceIntent provided, use it directly
   if (forceIntent) return forceIntent;
 
-  const normalizedAgentType = String(agentType || "").toLowerCase();
-  const normalized = String(message || "").toLowerCase();
-
-  if (
-    normalizedAgentType === "dev" &&
-    containsAny(normalized, IMPLEMENTATION_KEYWORDS)
-  ) {
-    return "implementation";
-  }
-
-  if (containsAny(normalized, READ_KEYWORDS)) {
-    return "read";
-  }
-
-  if (containsAny(normalized, WRITE_KEYWORDS)) {
-    return "write";
-  }
-
-  return "general";
+  // Use the new hybrid classifier (sync/keyword mode)
+  const { intent } = classifyIntentSync(message, agentType);
+  return intent;
 };
 
 const selectRuleLines = ({ agentType, intent }) => {
@@ -160,19 +95,13 @@ const buildSystemPrompt = ({
   });
 
   const lines = selectRuleLines({ agentType: resolvedAgentType, intent });
+  
+  // Build system prompt with project info and repository section
   const systemPromptParts = [
     ...lines,
     `- Project Name: ${project.name || "Untitled Project"}`,
-    `- Repository: ${project.repolink || "No repository URL."}`,
+    ...buildRepositoryPromptSection(project),
   ];
-
-  const ownerRepo = parseOwnerRepo(project.repolink);
-  if (ownerRepo) {
-    systemPromptParts.push(
-      `- GitHub Owner: ${ownerRepo.owner}`,
-      `- GitHub Repo: ${ownerRepo.repo}`,
-    );
-  }
 
   return {
     systemPrompt: systemPromptParts.join(" "),

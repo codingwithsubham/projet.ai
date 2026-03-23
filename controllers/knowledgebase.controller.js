@@ -105,6 +105,8 @@ const analyzeDocument = async (req, res) => {
 const analyzeRepository = async (req, res) => {
   try {
     const { projectId } = req.params;
+    const { repoId } = req.body || {};
+
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({
         success: false,
@@ -112,7 +114,15 @@ const analyzeRepository = async (req, res) => {
       });
     }
 
-    const result = await analyzeKnowledgeRepository(projectId);
+    // Validate repoId if provided
+    if (repoId && !mongoose.Types.ObjectId.isValid(repoId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid repository id",
+      });
+    }
+
+    const result = await analyzeKnowledgeRepository(projectId, repoId || null);
     if (!result) {
       return res.status(404).json({
         success: false,
@@ -131,6 +141,8 @@ const analyzeRepository = async (req, res) => {
         syncId: result.syncId,
         status: result.status,
         alreadyRunning: result.alreadyRunning,
+        repoId: result.repoId,
+        identifier: result.identifier,
       },
     });
   } catch (error) {

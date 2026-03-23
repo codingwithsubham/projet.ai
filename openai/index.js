@@ -17,11 +17,28 @@ const createLlmForProject = (project) => {
     model,
     apiKey,
     configuration: {
-      baseURL: process.env.OPENROUTER_BASE_URL,
+      baseURL: process.env.OPENAPI_URL,
       defaultHeaders: {
         "HTTP-Referer": "https://your-site.com",
         "X-Title": "agent-ai",
       },
+    },
+  });
+};
+
+// Lightweight LLM for intent classification (fast, deterministic)
+const createClassificationLLM = (project, model = "gpt-4o-mini") => {
+  if (!project?.openapikey) {
+    throw new Error("Project API key required for LLM classification");
+  }
+
+  return new ChatOpenAI({
+    model,
+    apiKey: project.openapikey,
+    temperature: 0, // Deterministic for classification
+    maxTokens: 150, // Classification response is small
+    configuration: {
+      baseURL: process.env.OPENAPI_URL,
     },
   });
 };
@@ -31,7 +48,7 @@ const llmAgent = new ChatOpenAI({
   model: process.env.model,
   apiKey: process.env.OPENROUTER_API_KEY,
   configuration: {
-    baseURL: process.env.OPENROUTER_BASE_URL,
+    baseURL: process.env.OPENAPI_URL,
     defaultHeaders: {
       "HTTP-Referer": "https://your-site.com",
       "X-Title": "agent-ai",
@@ -48,5 +65,6 @@ module.exports = {
   embeddingsClient,
   llmAgent,
   createLlmForProject,
+  createClassificationLLM,
   agentParser,
 };

@@ -2,9 +2,24 @@ const ChatSession = require("../models/ChatSessionModel");
 const { queryVectors } = require("./embaddingHelpers");
 const { AFFIRMATIVE_INPUTS } = require("../common/kb-constants");
 
-const MAX_CONTEXT_CHUNKS = 6;
-const MAX_CONTEXT_CHARS = 9000;
-const MAX_PREVIOUS_CONVERSATIONS = 3;
+// Import modular constants
+const {
+  MAX_CONTEXT_CHUNKS,
+  MAX_CONTEXT_CHARS,
+  MAX_PREVIOUS_CONVERSATIONS,
+  RAG_INTENTS,
+  getThresholdForIntent,
+  getChunksForIntent,
+} = require("../common/rag-constants");
+
+// Import repo detection utilities
+const {
+  detectRepoTagsFromQuery,
+  buildRepoFilter,
+} = require("./repoDetection");
+
+// Re-export for backward compatibility
+const { REPO_TAG_KEYWORDS } = require("../common/repo-tags");
 
 // Utility function to convert various content formats to plain text for consistent processing
 const toText = (content) => {
@@ -22,15 +37,45 @@ const toText = (content) => {
   return String(content || "");
 };
 
-// Build the RAG context by querying Pinecone with the user's question and retrieving relevant chunks of information
-const buildRagContext = async (project, query) => {
+// Build the RAG context by querying document vectors with the user's question and retrieving relevant chunks of information
+// Options:
+//   - intent: 'read' | 'write' | 'implementation' | 'general' - affects similarity threshold
+//   - repoId: filter to specific repository
+//   - repoTag: filter by repository tag (e.g., 'backend', 'frontend')
+//   - autoDetectRepo: if true, automatically detect repo tags from query keywords (default: true)
+const buildRagContext = async (project, query, options = {}) => {
   console.log(`\n🔍 Building RAG context...`);
+  const { 
+    intent = RAG_INTENTS.GENERAL, 
+    repoId = null, 
+    repoTag = null,
+    autoDetectRepo = true 
+  } = options;
 
   try {
-    const results = await queryVectors({
-      projectId: String(project._id),
+    // Build metadata filter using modular utility
+    const { filter, detectedTags } = buildRepoFilter({
       query,
-      topK: MAX_CONTEXT_CHUNKS,
+      repoId,
+      repoTag,
+      autoDetect: autoDetectRepo,
+      repositories: project.repositories,
+    });
+
+    if (detectedTags.length > 0) {
+      console.log(`🎯 Auto-detected repo tags: ${detectedTags.join(", ")}`);
+    }
+
+    const minScore = getThresholdForIntent(intent);
+    const topK = getChunksForIntent(intent);
+    console.log(`📊 Using ${intent} intent: threshold=${minScore}, chunks=${topK}`);
+
+    const results = await queryVectors({
+      project,
+      query,
+      topK,
+      filter,
+      minScore,
     });
 
     if (!results.length) {
@@ -42,7 +87,13 @@ const buildRagContext = async (project, query) => {
       .map((result, i) => {
         const source = result.metadata?.source || "unknown";
         const score = result.score?.toFixed(3) || "n/a";
-        return `### Context ${i + 1} (score: ${score}, source: ${source})\n${result.content}`;
+        
+        // Include repository metadata for multi-repo context
+        const repoIdentifier = result.metadata?.repoIdentifier || "default";
+        const repoTag = result.metadata?.repoTag || "unknown";
+        const repoInfo = `[${repoIdentifier}:${repoTag}]`;
+        
+        return `### Context ${i + 1} ${repoInfo} (score: ${score}, source: ${source})\n${result.content}`;
       })
       .join("\n\n")
       .slice(0, MAX_CONTEXT_CHARS);
@@ -200,6 +251,7 @@ const getOrCreateSession = async ({
 };
 
 module.exports = {
+  // Core utilities
   toText,
   buildRagContext,
   buildUserMessage,
@@ -207,7 +259,12 @@ module.exports = {
   buildRecentChatMessages,
   buildSessionTitle,
   getOrCreateSession,
-  MAX_CONTEXT_CHUNKS,
-  MAX_CONTEXT_CHARS,
-  MAX_PREVIOUS_CONVERSATIONS,
+  
+  // Re-exported for backward compatibility (prefer importing from source modules)
+  detectRepoTagsFromQuery,     // from ./repoDetection
+  REPO_TAG_KEYWORDS,           // from ../common/repo-tags
+  RAG_INTENTS,                 // from ../common/rag-constants
+  MAX_CONTEXT_CHUNKS,          // from ../common/rag-constants
+  MAX_CONTEXT_CHARS,           // from ../common/rag-constants
+  MAX_PREVIOUS_CONVERSATIONS,  // from ../common/rag-constants
 };

@@ -53,6 +53,9 @@ const SyncStatusSchema = new mongoose.Schema(
     repoInfo: {
       url: { type: String, default: "" },
       branch: { type: String, default: "main" },
+      repoId: { type: String, default: null },
+      identifier: { type: String, default: "" },
+      tag: { type: String, default: "" },
     },
   },
   {
@@ -63,6 +66,7 @@ const SyncStatusSchema = new mongoose.Schema(
 
 // Indexes for efficient queries
 SyncStatusSchema.index({ project_id: 1, syncType: 1, createdAt: -1 });
+SyncStatusSchema.index({ project_id: 1, syncType: 1, "repoInfo.repoId": 1, createdAt: -1 });
 SyncStatusSchema.index({ status: 1, createdAt: -1 });
 
 // Helper method to update progress
@@ -105,19 +109,27 @@ SyncStatusSchema.methods.markFailed = async function (error) {
 };
 
 // Static method to get latest sync status for a project
-SyncStatusSchema.statics.getLatestByProject = async function (projectId, syncType = "codebase") {
-  return this.findOne({ project_id: projectId, syncType })
+SyncStatusSchema.statics.getLatestByProject = async function (projectId, syncType = "codebase", repoId = null) {
+  const query = { project_id: projectId, syncType };
+  if (repoId) {
+    query["repoInfo.repoId"] = repoId;
+  }
+  return this.findOne(query)
     .sort({ createdAt: -1 })
     .exec();
 };
 
 // Static method to check if sync is already in progress
-SyncStatusSchema.statics.isSyncInProgress = async function (projectId, syncType = "codebase") {
-  const activeSync = await this.findOne({
+SyncStatusSchema.statics.isSyncInProgress = async function (projectId, syncType = "codebase", repoId = null) {
+  const query = {
     project_id: projectId,
     syncType,
     status: { $in: ["pending", "in_progress"] },
-  });
+  };
+  if (repoId) {
+    query["repoInfo.repoId"] = repoId;
+  }
+  const activeSync = await this.findOne(query);
   return !!activeSync;
 };
 

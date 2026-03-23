@@ -1,197 +1,71 @@
-const { RecursiveCharacterTextSplitter } = require("@langchain/textsplitters");
-const { CheerioWebBaseLoader } = require("@langchain/community/document_loaders/web/cheerio");
-const { GithubRepoLoader } = require("@langchain/community/document_loaders/web/github");
-const { getPineconeIndex } = require("../config/pinecone");
+/**
+ * Embedding Helpers
+ * 
+ * High-level orchestration layer for document embedding operations.
+ * Uses LangChain's indexing API with Record Manager for deduplication.
+ */
+
+const { loadWebDocument, loadGithubRepo, countUniqueFiles } = require("./documentLoaders");
+const { indexWebpage, indexCodebase } = require("../services/indexing.service");
+const { similaritySearch } = require("../services/vectorStore.service");
 const projectService = require("../services/project.service");
 const SyncStatus = require("../models/SyncStatusModel");
 
 /**
- * Load and split a web document from URL
- */
-const loadWebDocument = async (url) => {
-  console.log(`📄 Loading document from: ${url}`);
-  
-  const loader = new CheerioWebBaseLoader(url);
-  const docs = await loader.load();
-  
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-  });
-  
-  const splitDocs = await splitter.splitDocuments(docs);
-  console.log(`✅ Split into ${splitDocs.length} chunks`);
-  
-  return splitDocs;
-};
-
-/**
- * Load and split a GitHub repository
- */
-const loadGithubRepo = async (repoUrl, patToken, branch = "main") => {
-  console.log(`📦 Loading repository: ${repoUrl}`);
-  
-  // Normalize repo URL
-  let normalizedUrl = repoUrl.trim();
-  if (!normalizedUrl.startsWith("http")) {
-    normalizedUrl = `https://github.com/${normalizedUrl}`;
-  }
-  normalizedUrl = normalizedUrl.replace(/\.git$/, "").replace(/\/$/, "");
-  
-  const loaderOptions = {
-    branch,
-    recursive: true,
-    ignorePaths: [
-      "node_modules",
-      "dist",
-      "build",
-      ".git",
-      "*.md",
-      "*.lock",
-      "package-lock.json",
-      "yarn.lock",
-      ".env",
-      ".gitignore",
-    ],
-    unknown: "warn",
-  };
-  
-  // Add access token if provided
-  if (patToken && patToken.trim()) {
-    loaderOptions.accessToken = patToken.trim();
-  } else if (process.env.GITHUB_TOKEN) {
-    loaderOptions.accessToken = process.env.GITHUB_TOKEN;
-  }
-  
-  const loader = new GithubRepoLoader(normalizedUrl, loaderOptions);
-  const docs = await loader.load();
-  
-  console.log(`📄 Loaded ${docs.length} files from repository`);
-  
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 100,
-  });
-  
-  const splitDocs = await splitter.splitDocuments(docs);
-  console.log(`✅ Split into ${splitDocs.length} chunks`);
-  
-  return splitDocs;
-};
-
-/**
- * Generate embeddings and store in Pinecone for a web document.
- * Uses source URL as unique identifier to prevent duplicates.
+ * Generate embeddings and store for a web document.
+ * Uses Record Manager to prevent duplicates automatically.
+ * 
+ * @param {Object} options
+ * @param {string} options.url - Web page URL
+ * @param {string} options.projectId - Project ID
+ * @returns {Promise<Object>} Indexing result
  */
 const generateAndStoreEmbeddings = async ({ url, projectId }) => {
-  console.log(`\n🚀 generateAndStoreEmbeddings started`);
-  console.log(`   URL: ${url}`);
-  console.log(`   Project ID: ${projectId}`);
+  console.log(`\n🚀 Indexing webpage: ${url}`);
   
   if (!url || !projectId) {
     throw new Error("url and projectId are required");
   }
   
-  try {
-    // 1. Load and split the document
-    const splitDocs = await loadWebDocument(url);
-    
-    if (!splitDocs.length) {
-      console.log("⚠️ No content found in document");
-      return { success: true, inserted: 0, updated: 0, deleted: 0, skipped: 0 };
-    }
-    
-    // 2. Add metadata to each chunk
-    const docsWithMetadata = splitDocs.map((doc, idx) => ({
-      ...doc,
-      metadata: {
-        ...doc.metadata,
-        projectId: String(projectId),
-        scope: "webpage",
-        source: url,
-        chunkIndex: idx,
-      },
-    }));
-    
-    // 3. Delete existing vectors for this URL (to handle updates)
-    const index = getPineconeIndex();
-    const namespace = `project-${projectId}`;
-    
-    try {
-      // Delete by metadata filter - vectors with same source URL
-      await index.namespace(namespace).deleteMany({
-        filter: { source: { $eq: url } },
-      });
-      console.log(`🗑️ Deleted existing vectors for source: ${url}`);
-    } catch (deleteErr) {
-      // Ignore delete errors (might not exist)
-      console.log(`ℹ️ No existing vectors to delete for: ${url}`);
-    }
-    
-    const now = Date.now();
-    const records = docsWithMetadata
-      .map((doc, idx) => {
-        const text = (doc.pageContent || "").trim();
-        if (!text) {
-          return null;
-        }
-
-        return {
-          _id: `${projectId}-webpage-${idx}-${now}`,
-          text,
-          projectId: doc.metadata.projectId,
-          scope: doc.metadata.scope,
-          source: doc.metadata.source,
-          chunkIndex: doc.metadata.chunkIndex,
-        };
-      })
-      .filter(Boolean);
-
-    console.log(`📤 Upserting ${records.length} records with Pinecone integrated embeddings...`);
-
-    const BATCH_SIZE = 96; // Pinecone integrated embeddings limit
-    const target = index.namespace(namespace);
-    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-      const batch = records.slice(i, i + BATCH_SIZE);
-      if (!batch.length) {
-        continue;
-      }
-
-      console.log(
-        `   ⤴ Upserting batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)} - size=${batch.length}, firstId=${batch[0]?._id}`
-      );
-      await target.upsertRecords({ records: batch });
-    }
-    
-
-    return {
-      success: true,
-      inserted: records.length,
-      updated: 0,
-      deleted: 0,
-      skipped: docsWithMetadata.length - records.length,
-    };
-  } catch (err) {
-    console.error("❌ generateAndStoreEmbeddings failed:", err);
-    throw err;
+  // Get project details
+  const project = await projectService.getProjectById(projectId);
+  if (!project) {
+    throw new Error(`Project not found: ${projectId}`);
   }
+  
+  // Load and split document
+  const documents = await loadWebDocument(url);
+  
+  if (!documents.length) {
+    console.log("⚠️ No content found in document");
+    return { success: true, numAdded: 0, numUpdated: 0, numSkipped: 0, numDeleted: 0 };
+  }
+  
+  // Index with automatic deduplication
+  const result = await indexWebpage({ project, documents, url });
+  
+  return {
+    success: true,
+    ...result,
+  };
 };
 
 /**
- * Sync a GitHub codebase to Pinecone (synchronous version).
- * Uses file path as unique identifier for incremental updates.
+ * Sync a GitHub codebase (synchronous version).
+ * Uses Record Manager with full cleanup for complete sync.
+ * 
  * @param {Object} options
- * @param {string} options.projectId - The project ID
- * @param {Object} [options.syncStatus] - Optional SyncStatus document to update progress
+ * @param {string} options.projectId - Project ID
+ * @param {Object} [options.syncStatus] - SyncStatus document for progress updates
+ * @returns {Promise<Object>} Sync result
  */
-const syncCodebase = async ({ projectId, syncStatus = null }) => {
-  console.log(`\n🔄 syncCodebase started for project: ${projectId}`);
+const syncCodebase = async ({ projectId, syncStatus = null, repoData = null }) => {
+  console.log(`\n🔄 Syncing codebase for project: ${projectId}`);
   
   if (!projectId) {
     throw new Error("projectId is required");
   }
   
-  // Helper to update progress if syncStatus is provided
   const updateProgress = async (step, percentage) => {
     if (syncStatus) {
       try {
@@ -202,161 +76,112 @@ const syncCodebase = async ({ projectId, syncStatus = null }) => {
     }
   };
   
-  // 1. Get project details from DB
+  // Get project details
   const project = await projectService.getProjectById(projectId);
   if (!project) {
     throw new Error(`Project not found: ${projectId}`);
   }
+
+  // Determine repository URL - use provided repoData or fallback to project.repolink
+  const repoUrl = repoData?.repolink || project.repolink;
+  const repoIdentifier = repoData?.identifier || "default";
   
-  if (!project.repolink) {
-    throw new Error("Project does not have a repository link configured");
+  if (!repoUrl) {
+    throw new Error("No repository link configured");
   }
   
-  console.log(`📦 Repository: ${project.repolink}`);
-  console.log(`🔑 PAT Token: ${project.pat_token ? "configured" : "not configured"}`);
+  console.log(`📦 Repository: ${repoIdentifier} (${repoUrl})`);
   
-  await updateProgress("Loading repository from GitHub...", 5);
+  await updateProgress("Loading repository from GitHub...", 10);
   
-  try {
-    // 2. Load and split the repository
-    const splitDocs = await loadGithubRepo(
-      project.repolink,
-      project.pat_token,
-      "main"
-    );
-    
-    await updateProgress("Processing repository files...", 30);
-    
-    if (!splitDocs.length) {
-      console.log("⚠️ No content found in repository");
-      return { success: true, inserted: 0, updated: 0, deleted: 0, skipped: 0, totalFiles: 0, totalChunks: 0 };
-    }
-    
-    // 3. Add metadata to each chunk
-    const docsWithMetadata = splitDocs.map((doc, idx) => ({
-      ...doc,
-      metadata: {
-        ...doc.metadata,
-        projectId: String(projectId),
-        scope: "codebase",
-        chunkIndex: idx,
-      },
-    }));
-    
-    await updateProgress("Clearing existing vectors...", 40);
-    
-    // 4. Clear existing codebase vectors for this project (full sync)
-    const index = getPineconeIndex();
-    const namespace = `project-${projectId}`;
-    
-    try {
-      await index.namespace(namespace).deleteMany({
-        filter: { scope: { $eq: "codebase" } },
-      });
-      console.log(`🗑️ Cleared existing codebase vectors for project`);
-    } catch (deleteErr) {
-      console.log(`ℹ️ No existing codebase vectors to delete`);
-    }
-    
-    await updateProgress("Preparing records for embedding...", 50);
-    
-    // 5. Upsert records using Pinecone integrated embeddings
-    const now = Date.now();
-    const records = docsWithMetadata
-      .map((doc, idx) => {
-        const text = (doc.pageContent || "").trim();
-        if (!text) {
-          return null;
-        }
-
-        return {
-          _id: `${projectId}-codebase-${idx}-${now}`,
-          text,
-          projectId: doc.metadata.projectId,
-          scope: doc.metadata.scope,
-          source: doc.metadata.source || "",
-          chunkIndex: doc.metadata.chunkIndex,
-        };
-      })
-      .filter(Boolean);
-
-    console.log(`📤 Upserting ${records.length} records with Pinecone integrated embeddings...`);
-
-    const BATCH_SIZE = 96; // Pinecone integrated embeddings limit
-    const target = index.namespace(namespace);
-    const totalBatches = Math.ceil(records.length / BATCH_SIZE);
-    
-    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-      const batch = records.slice(i, i + BATCH_SIZE);
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-      
-      if (!batch.length) {
-        console.log(`   ⚠️ Skipping empty batch at ${i}`);
-        continue;
-      }
-      
-      // Calculate progress: 50% base + up to 45% for batches (leaving 5% for completion)
-      const batchProgress = 50 + Math.floor((batchNum / totalBatches) * 45);
-      await updateProgress(`Embedding batch ${batchNum}/${totalBatches}...`, batchProgress);
-      
-      console.log(`   ⤴ Upserting batch ${batchNum}/${totalBatches} - size=${batch.length}, firstId=${batch[0]?._id}`);
-      await target.upsertRecords({ records: batch });
-      console.log(`   ✅ Upserted batch ${batchNum}/${totalBatches}`);
-    }
-    
-    console.log(`✅ Stored ${records.length} records in Pinecone`);
-    
-    // Count unique files from source metadata
-    const uniqueFiles = new Set(docsWithMetadata.map(d => d.metadata.source).filter(Boolean));
-    
-    return {
-      success: true,
-      inserted: records.length,
-      updated: 0,
-      deleted: 0,
-      skipped: docsWithMetadata.length - records.length,
-      totalFiles: uniqueFiles.size,
-      totalChunks: records.length,
-    };
-  } catch (err) {
-    console.error("❌ syncCodebase failed:", err);
-    throw err;
+  // Load repository
+  const documents = await loadGithubRepo({
+    repoUrl,
+    patToken: project.pat_token,
+    branch: "main",
+  });
+  
+  await updateProgress("Processing repository files...", 40);
+  
+  if (!documents.length) {
+    console.log("⚠️ No content found in repository");
+    return { success: true, numAdded: 0, numUpdated: 0, numSkipped: 0, numDeleted: 0, totalFiles: 0, totalChunks: 0 };
   }
+  
+  await updateProgress("Indexing documents...", 60);
+  
+  // Index with full cleanup (replaces all codebase docs for this repo)
+  // Pass repository metadata for context filtering
+  const result = await indexCodebase({
+    project,
+    documents,
+    repoMetadata: {
+      repoId: repoData?.repoId || null,
+      identifier: repoIdentifier,
+      tag: repoData?.tag || "backend",
+      repoUrl,
+    },
+  });
+  
+  await updateProgress("Finalizing...", 95);
+  
+  const totalFiles = countUniqueFiles(documents);
+  const totalChunks = result.numAdded || 0;
+  
+  console.log(`✅ Indexed ${totalChunks} chunks from ${totalFiles} files`);
+  
+  return {
+    success: true,
+    ...result,
+    totalFiles,
+    totalChunks,
+  };
 };
 
 /**
  * Start async codebase sync - returns immediately with sync status ID.
- * The actual sync runs in the background.
- * @param {string} projectId - The project ID
- * @returns {Promise<{syncId: string, status: string, message: string}>}
+ * 
+ * @param {string} projectId - Project ID
+ * @param {Object} [repoData] - Optional repository data for multi-repo projects
+ * @param {string} repoData.repolink - Repository URL
+ * @param {string} repoData.identifier - Repository identifier
+ * @param {string} repoData.tag - Repository tag (frontend/backend/etc)
+ * @param {string} repoData.repoId - Repository subdocument ID
+ * @returns {Promise<Object>} Sync status info
  */
-const syncCodebaseAsync = async (projectId) => {
-  console.log(`\n🚀 syncCodebaseAsync initiated for project: ${projectId}`);
+const syncCodebaseAsync = async (projectId, repoData = null) => {
+  console.log(`\n🚀 Starting async sync for project: ${projectId}`);
   
   if (!projectId) {
     throw new Error("projectId is required");
   }
+
+  const repoId = repoData?.repoId || null;
   
-  // Check if sync is already in progress
-  const isInProgress = await SyncStatus.isSyncInProgress(projectId, "codebase");
+  // Check if sync is already in progress for this specific repo
+  const isInProgress = await SyncStatus.isSyncInProgress(projectId, "codebase", repoId);
   if (isInProgress) {
-    const existingSync = await SyncStatus.getLatestByProject(projectId, "codebase");
+    const existingSync = await SyncStatus.getLatestByProject(projectId, "codebase", repoId);
     return {
       syncId: existingSync._id.toString(),
       status: existingSync.status,
-      message: "A sync operation is already in progress for this project",
+      message: "A sync operation is already in progress for this repository",
       alreadyRunning: true,
     };
   }
   
-  // Validate project exists and has repo configured
+  // Validate project
   const project = await projectService.getProjectById(projectId);
   if (!project) {
     throw new Error(`Project not found: ${projectId}`);
   }
+
+  // Determine repository URL
+  const repoUrl = repoData?.repolink || project.repolink;
+  const repoIdentifier = repoData?.identifier || "default";
   
-  if (!project.repolink) {
-    throw new Error("Project does not have a repository link configured");
+  if (!repoUrl) {
+    throw new Error("No repository link configured");
   }
   
   // Create sync status record
@@ -364,32 +189,32 @@ const syncCodebaseAsync = async (projectId) => {
     project_id: projectId,
     syncType: "codebase",
     status: "pending",
-    description: `Syncing repository: ${project.repolink}`,
+    description: `Syncing repository: ${repoIdentifier} (${repoUrl})`,
     repoInfo: {
-      url: project.repolink,
+      url: repoUrl,
       branch: "main",
+      identifier: repoIdentifier,
+      tag: repoData?.tag || "backend",
+      repoId: repoId,
     },
   });
   
   console.log(`📋 Created sync status: ${syncStatus._id}`);
   
-  // Start the sync in the background (don't await)
+  // Start background sync
   setImmediate(async () => {
     try {
       await syncStatus.markInProgress("Initializing sync...");
-      
-      const result = await syncCodebase({ projectId, syncStatus });
-      
+      const result = await syncCodebase({ projectId, syncStatus, repoData });
       await syncStatus.markCompleted({
         totalFiles: result.totalFiles || 0,
         totalChunks: result.totalChunks || 0,
-        inserted: result.inserted,
-        updated: result.updated,
-        deleted: result.deleted,
-        skipped: result.skipped,
+        inserted: result.numAdded || 0,
+        updated: 0,
+        deleted: result.numDeleted || 0,
+        skipped: result.numSkipped || 0,
       });
-      
-      console.log(`✅ Async sync completed for project: ${projectId}`);
+      console.log(`✅ Async sync completed for project: ${projectId}, repo: ${repoIdentifier}`);
     } catch (err) {
       console.error(`❌ Async sync failed for project: ${projectId}`, err);
       await syncStatus.markFailed(err);
@@ -406,35 +231,36 @@ const syncCodebaseAsync = async (projectId) => {
 
 /**
  * Query vectors for RAG context
+ * 
+ * @param {Object} options
+ * @param {Object} options.project - Project object
+ * @param {string} options.query - Query text
+ * @param {number} [options.topK=5] - Number of results
+ * @param {Object} [options.filter] - Optional metadata filter (e.g., { repoId, repoTag })
+ * @returns {Promise<Array>} Relevant documents with repository metadata
  */
-const queryVectors = async ({ projectId, query, topK = 5 }) => {
-  console.log(`\n🔍 queryVectors for project: ${projectId}`);
-  console.log(`   Query: "${query.slice(0, 50)}..."`);
+const queryVectors = async ({ project, query, topK = 5, filter = {}, minScore = null }) => {
+  console.log(`\n🔍 Querying vectors for project: ${project?._id}`);
   
-  const index = getPineconeIndex();
-  const namespace = `project-${projectId}`;
-  const response = await index.namespace(namespace).searchRecords({
-    query: {
-      inputs: { text: query },
-      topK,
-    },
-    fields: ["text", "projectId", "scope", "source", "chunkIndex"],
-  });
+  const searchOptions = { project, query, topK, filter };
+  if (minScore !== null) searchOptions.minScore = minScore;
   
-  const results = (response?.result?.hits || []).map((hit) => ({
-    content: hit?.fields?.text || "",
-    metadata: {
-      projectId: hit?.fields?.projectId,
-      scope: hit?.fields?.scope,
-      source: hit?.fields?.source,
-      chunkIndex: hit?.fields?.chunkIndex,
-    },
-    score: hit?.score,
-  }));
+  const results = await similaritySearch(searchOptions);
   
   console.log(`✅ Found ${results.length} relevant chunks`);
   
-  return results;
+  // Ensure repository metadata is included in results
+  return results.map((result) => ({
+    ...result,
+    metadata: {
+      ...result.metadata,
+      // Ensure repo metadata fields are accessible
+      repoId: result.metadata?.repoId || null,
+      repoIdentifier: result.metadata?.repoIdentifier || "default",
+      repoTag: result.metadata?.repoTag || "unknown",
+      repoUrl: result.metadata?.repoUrl || null,
+    },
+  }));
 };
 
 module.exports = {

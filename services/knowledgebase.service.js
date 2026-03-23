@@ -38,12 +38,44 @@ const analyzeKnowledgeDocument = async (docId) => {
   return doc;
 };
 
-const analyzeKnowledgeRepository = async (projectId) => {
+/**
+ * Analyze a repository for a project
+ * @param {string} projectId - The project ID
+ * @param {string} [repoId] - Optional repository ID (for multi-repo projects)
+ * @returns {Promise<Object>} Sync result
+ */
+const analyzeKnowledgeRepository = async (projectId, repoId = null) => {
   const project = await projectService.getProjectById(projectId);
   if (!project) return null;
 
+  // Determine which repository to analyze
+  let repoData = null;
+  if (repoId) {
+    // Multi-repo: Find specific repository
+    const repo = project.repositories?.find((r) => r._id.toString() === repoId);
+    if (!repo) {
+      throw new Error("Repository not found");
+    }
+    repoData = {
+      repolink: repo.repolink,
+      identifier: repo.identifier,
+      tag: repo.tag,
+      repoId: repo._id.toString(),
+    };
+  } else if (project.repolink) {
+    // Legacy: Use single repolink field
+    repoData = {
+      repolink: project.repolink,
+      identifier: "default",
+      tag: "backend",
+      repoId: null,
+    };
+  } else {
+    throw new Error("No repository configured for this project");
+  }
+
   // Use async version - returns immediately with sync status ID
-  const result = await syncCodebaseAsync(projectId);
+  const result = await syncCodebaseAsync(projectId, repoData);
 
   return {
     success: true,
@@ -51,6 +83,8 @@ const analyzeKnowledgeRepository = async (projectId) => {
     status: result.status,
     message: result.message,
     alreadyRunning: result.alreadyRunning || false,
+    repoId: repoData.repoId,
+    identifier: repoData.identifier,
   };
 };
 

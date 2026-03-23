@@ -1,6 +1,6 @@
 const { tool } = require("@langchain/core/tools");
 const { z } = require("zod");
-const { getPineconeIndex } = require("../config/pinecone");
+const { addDocuments } = require("../services/vectorStore.service");
 const {
   LOW_SIGNAL_FEEDBACK,
   HAPPY_KEYWORDS,
@@ -68,25 +68,25 @@ const createStoreHappyFeedbackTool = (project) => {
 
       const now = Date.now();
       const recordId = `${projectId}-feedback-${now}-${Math.random().toString(36).slice(2, 8)}`;
-      const namespace = `project-${projectId}`;
 
-      const index = getPineconeIndex();
       try {
-        await index.namespace(namespace).upsertRecords({
-          records: [
+        await addDocuments({
+          project,
+          documents: [
             {
-              _id: recordId,
-              text,
-              projectId,
-              scope: FEEDBACK_SCOPE,
-              source: "pm-agent-happy-feedback",
-              kind: "happy_feedback",
-              createdAt: new Date(now).toISOString(),
+              pageContent: text,
+              metadata: {
+                scope: FEEDBACK_SCOPE,
+                source: "pm-agent-happy-feedback",
+                id: recordId,
+                kind: "happy_feedback",
+                createdAt: new Date(now).toISOString(),
+              },
             },
           ],
         });
       } catch (error) {
-        console.log("Error storing happy feedback to Pinecone:", error);
+        console.log("Error storing happy feedback to vector store:", error);
         return JSON.stringify({
           success: false,
           message: "Error storing happy feedback in knowledge base",
@@ -97,7 +97,7 @@ const createStoreHappyFeedbackTool = (project) => {
         success: true,
         message: "Happy feedback stored in knowledge base",
         recordId,
-        namespace,
+        projectId,
         scope: FEEDBACK_SCOPE,
       });
     },

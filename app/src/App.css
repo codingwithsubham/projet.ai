@@ -1172,6 +1172,204 @@ button.projects-btn.icon-btn {
   margin-bottom: 12px;
 }
 
+/* Multi-Repository Styles */
+.kb-multi-repo {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.kb-multi-repo__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kb-multi-repo__header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.kb-multi-repo__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.kb-multi-repo__form-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kb-multi-repo__input {
+  flex: 1;
+  min-width: 150px;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.kb-multi-repo__input--wide {
+  flex: 2;
+  min-width: 250px;
+}
+
+.kb-multi-repo__select {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  min-width: 120px;
+}
+
+.kb-multi-repo__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.kb-multi-repo__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  gap: 12px;
+}
+
+.kb-multi-repo__item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.kb-multi-repo__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.kb-multi-repo__identifier {
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+}
+
+.kb-multi-repo__tag {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.kb-multi-repo__tag--frontend {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.kb-multi-repo__tag--backend {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.kb-multi-repo__tag--ui {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.kb-multi-repo__tag--devops {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.kb-multi-repo__tag--mobile {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.kb-multi-repo__tag--shared {
+  background: #e0f7fa;
+  color: #00838f;
+}
+
+.kb-multi-repo__tag--docs {
+  background: #fafafa;
+  color: #616161;
+}
+
+.kb-multi-repo__link {
+  display: block;
+  color: #007bff;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.kb-multi-repo__link:hover {
+  text-decoration: underline;
+}
+
+.kb-multi-repo__item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Inline sync status for repository items */
+.kb-sync-progress--inline {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+}
+
+.kb-sync-status--inline {
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* Legacy repository note */
+.kb-legacy-repo {
+  background: #fff8e1;
+  border-color: #ffe082;
+}
+
+.kb-legacy-note {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+/* Danger button style */
+.projects-btn--danger {
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.projects-btn--danger:hover {
+  background: #c82333;
+  border-color: #bd2130;
+}
+
 /* Sync Progress Styles */
 .kb-sync-progress {
   margin-top: 12px;

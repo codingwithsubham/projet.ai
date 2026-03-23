@@ -171,6 +171,136 @@ const saveProjectPatToken = async (req, res) => {
   }
 };
 
+// ============ Repository Management Endpoints ============
+
+const getRepositories = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+
+    const repositories = await projectService.getRepositoriesByProjectId(id);
+    return res.status(200).json({ success: true, data: repositories });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch repositories",
+      error: error.message,
+    });
+  }
+};
+
+const addRepository = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { identifier, repolink, tag } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+
+    if (!identifier?.trim() || !repolink?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Repository identifier and link are required",
+      });
+    }
+
+    const project = await projectService.addRepository(id, { identifier, repolink, tag });
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Repository added successfully",
+      data: project.repositories,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to add repository",
+    });
+  }
+};
+
+const updateRepository = async (req, res) => {
+  try {
+    const { id, repoId } = req.params;
+    const { identifier, repolink, tag } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(repoId)) {
+      return res.status(400).json({ success: false, message: "Invalid project or repository id" });
+    }
+
+    const project = await projectService.updateRepository(id, repoId, { identifier, repolink, tag });
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Repository updated successfully",
+      data: project.repositories,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update repository",
+    });
+  }
+};
+
+const deleteRepository = async (req, res) => {
+  try {
+    const { id, repoId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(repoId)) {
+      return res.status(400).json({ success: false, message: "Invalid project or repository id" });
+    }
+
+    const project = await projectService.deleteRepository(id, repoId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Repository deleted successfully",
+      data: project.repositories,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to delete repository",
+    });
+  }
+};
+
+const getRepository = async (req, res) => {
+  try {
+    const { id, repoId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(repoId)) {
+      return res.status(400).json({ success: false, message: "Invalid project or repository id" });
+    }
+
+    const repository = await projectService.getRepositoryById(id, repoId);
+    if (!repository) {
+      return res.status(404).json({ success: false, message: "Repository not found" });
+    }
+
+    return res.status(200).json({ success: true, data: repository });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch repository",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getAllProjects,
@@ -179,4 +309,10 @@ module.exports = {
   deleteProjectById,
   saveProjectRepo,
   saveProjectPatToken,
+  // Repository management
+  getRepositories,
+  addRepository,
+  updateRepository,
+  deleteRepository,
+  getRepository,
 };

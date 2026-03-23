@@ -13,6 +13,8 @@ const {
   buildSystemPrompt,
   resolveIntent,
 } = require("../helpers/systemPromptBuilder");
+const { classifyIntent } = require("../helpers/intentClassifier");
+const { RAG_INTENTS } = require("../common/rag-constants");
 const {
   DEFAULT_GRAPH_RECURSION_LIMIT,
   ASYNC_IMPLEMENTATION_ACK,
@@ -127,13 +129,27 @@ const coreOrchastrator = async ({
       currentUserMessage: cleanMessage,
     });
 
-    // Build RAG context from Pinecone
-    const ragContext = await buildRagContext(project, cleanMessage);
+    // Classify intent using hybrid approach (keywords + LLM fallback for low confidence)
+    const classification = await classifyIntent({
+      query: cleanMessage,
+      agentType,
+      project, // Enables LLM fallback if confidence is low
+      allowLLMFallback: true,
+    });
 
-    const { systemPrompt } = buildSystemPrompt({
+    console.log(`📋 Intent: ${classification.intent} (${classification.method}, confidence: ${classification.confidence})`);
+
+    // Build system prompt with classified intent
+    const { systemPrompt, promptMeta } = buildSystemPrompt({
       agentType,
       message: cleanMessage,
       project,
+      forceIntent: classification.intent,
+    });
+
+    // Build RAG context with same intent for consistency
+    const ragContext = await buildRagContext(project, cleanMessage, {
+      intent: classification.intent,
     });
 
     const userPrompt = [
@@ -210,12 +226,21 @@ const runAgentInBackground = async ({
       "Do not block for extra confirmation.",
     ].join("\n");
 
-    const ragContext = await buildRagContext(project, cleanMessage);
+    // For async background tasks, we already know it's implementation intent
+    // (validated by shouldRunAsyncImplementation before reaching here)
+    const classifiedIntent = RAG_INTENTS.IMPLEMENTATION;
 
+    // Build system prompt with implementation intent
     const { systemPrompt } = buildSystemPrompt({
       agentType,
       message: cleanMessage,
       project,
+      forceIntent: classifiedIntent,
+    });
+
+    // Use implementation intent for async tasks (stricter threshold, more chunks)
+    const ragContext = await buildRagContext(project, cleanMessage, {
+      intent: classifiedIntent,
     });
 
     const userPrompt = [

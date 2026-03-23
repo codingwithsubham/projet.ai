@@ -10,7 +10,14 @@ import {
 } from "../services/knowledgebase.api";
 
 export const useKnowledgebase = (projectId) => {
-  const { getProjectById, saveProjectRepo, saveProjectPatToken } = useAppData();
+  const {
+    getProjectById,
+    saveProjectRepo,
+    saveProjectPatToken,
+    addRepository: addRepoToContext,
+    updateRepository: updateRepoInContext,
+    deleteRepository: deleteRepoFromContext,
+  } = useAppData();
 
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -22,10 +29,18 @@ export const useKnowledgebase = (projectId) => {
   const [uiMessage, setUiMessage] = useState(null);
   const [analyzePromptDoc, setAnalyzePromptDoc] = useState(null);
 
+  // Legacy single repo support (backward compatibility)
   const [repoLinkInput, setRepoLinkInput] = useState("");
   const [savedRepoLink, setSavedRepoLink] = useState("");
   const [repoLoading, setRepoLoading] = useState(false);
   const [isRepoEditing, setIsRepoEditing] = useState(false);
+
+  // Multi-repository support
+  const [repositories, setRepositories] = useState([]);
+  const [repoFormData, setRepoFormData] = useState({ identifier: "", repolink: "", tag: "backend" });
+  const [editingRepoId, setEditingRepoId] = useState(null);
+  const [repoActionLoading, setRepoActionLoading] = useState(false);
+  const [analyzingRepoId, setAnalyzingRepoId] = useState(null);
 
   const [patTokenInput, setPatTokenInput] = useState("");
   const [savedPatToken, setSavedPatToken] = useState("");
@@ -34,6 +49,7 @@ export const useKnowledgebase = (projectId) => {
 
   // Sync status state for async repository analysis
   const [syncStatus, setSyncStatus] = useState(null);
+  const [repoSyncStatuses, setRepoSyncStatuses] = useState({});
   const pollIntervalRef = useRef(null);
 
   // Cleanup polling on unmount
@@ -75,9 +91,11 @@ export const useKnowledgebase = (projectId) => {
 
     const existingRepo = res?.data?.repolink || "";
     const existingPat = res?.data?.pat_token || "";
+    const existingRepos = Array.isArray(res?.data?.repositories) ? res.data.repositories : [];
 
     setSavedRepoLink(existingRepo);
     setRepoLinkInput(existingRepo);
+    setRepositories(existingRepos);
 
     setSavedPatToken(existingPat);
     setPatTokenInput(existingPat ? maskPat(existingPat) : "");
@@ -182,9 +200,12 @@ export const useKnowledgebase = (projectId) => {
     setRepoLinkInput(savedRepoLink);
   }, [savedRepoLink]);
 
-  const analyzeRepo = useCallback(async () => {
+  const analyzeRepo = useCallback(async (repoId = null) => {
     if (!projectId) return { ok: false, error: "Invalid project id" };
-    if (!savedRepoLink) {
+    
+    // For legacy single repo, check savedRepoLink
+    // For multi-repo, repoId is required
+    if (!repoId && !savedRepoLink) {
       setUiMessage({ type: "error", text: "Save repository link first" });
       return { ok: false };
     }
@@ -196,13 +217,22 @@ export const useKnowledgebase = (projectId) => {
     }
 
     try {
-      setRepoLoading(true);
-      const res = await analyzeKnowledgeRepositoryApi(projectId);
+      if (repoId) {
+        setAnalyzingRepoId(repoId);
+      } else {
+        setRepoLoading(true);
+      }
+      
+      const res = await analyzeKnowledgeRepositoryApi(projectId, repoId);
       const syncId = res?.data?.syncId;
       
       if (!syncId) {
         setUiMessage({ type: "error", text: "Failed to start repository sync" });
-        setRepoLoading(false);
+        if (repoId) {
+          setAnalyzingRepoId(null);
+        } else {
+          setRepoLoading(false);
+        }
         return { ok: false };
       }
 
@@ -210,15 +240,23 @@ export const useKnowledgebase = (projectId) => {
       if (res?.data?.alreadyRunning) {
         setUiMessage({ type: "info", text: "A sync is already in progress" });
       } else {
-        setUiMessage({ type: "info", text: "Repository sync started..." });
+        const repoName = res?.data?.identifier || "Repository";
+        setUiMessage({ type: "info", text: `${repoName} sync started...` });
       }
 
       // Initialize sync status
-      setSyncStatus({
+      const newSyncStatus = {
         syncId,
         status: res?.data?.status || "pending",
         progress: { currentStep: "Starting...", percentage: 0 },
-      });
+        repoId: repoId,
+      };
+      
+      if (repoId) {
+        setRepoSyncStatuses((prev) => ({ ...prev, [repoId]: newSyncStatus }));
+      } else {
+        setSyncStatus(newSyncStatus);
+      }
 
       // Start polling for sync status
       pollIntervalRef.current = setInterval(async () => {
@@ -228,19 +266,31 @@ export const useKnowledgebase = (projectId) => {
           
           if (!data) return;
 
-          setSyncStatus({
+          const updatedStatus = {
             syncId: data.syncId,
             status: data.status,
             progress: data.progress || { currentStep: "", percentage: 0 },
             stats: data.stats,
             error: data.error,
-          });
+            repoId: repoId,
+          };
+
+          if (repoId) {
+            setRepoSyncStatuses((prev) => ({ ...prev, [repoId]: updatedStatus }));
+          } else {
+            setSyncStatus(updatedStatus);
+          }
 
           // Stop polling on completion or failure
           if (data.status === "completed" || data.status === "failed") {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
-            setRepoLoading(false);
+            
+            if (repoId) {
+              setAnalyzingRepoId(null);
+            } else {
+              setRepoLoading(false);
+            }
 
             if (data.status === "completed") {
               const stats = data.stats || {};
@@ -265,7 +315,11 @@ export const useKnowledgebase = (projectId) => {
       const message =
         err?.response?.data?.message || err?.message || "Failed to analyze repository";
       setUiMessage({ type: "error", text: message });
-      setRepoLoading(false);
+      if (repoId) {
+        setAnalyzingRepoId(null);
+      } else {
+        setRepoLoading(false);
+      }
       return { ok: false, error: message };
     }
   }, [projectId, savedRepoLink]);
@@ -376,6 +430,106 @@ export const useKnowledgebase = (projectId) => {
     return { ok: true, data: res.data };
   }, [maskPat, patTokenInput, projectId, saveProjectPatToken]);
 
+  // ============ Multi-Repository Management Methods ============
+
+  const resetRepoForm = useCallback(() => {
+    setRepoFormData({ identifier: "", repolink: "", tag: "backend" });
+    setEditingRepoId(null);
+  }, []);
+
+  const handleRepoFormChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setRepoFormData((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  const startEditRepository = useCallback((repo) => {
+    setEditingRepoId(repo._id);
+    setRepoFormData({
+      identifier: repo.identifier || "",
+      repolink: repo.repolink || "",
+      tag: repo.tag || "backend",
+    });
+  }, []);
+
+  const cancelEditRepository = useCallback(() => {
+    resetRepoForm();
+  }, [resetRepoForm]);
+
+  const addRepository = useCallback(async () => {
+    if (!projectId) return { ok: false, error: "Invalid project id" };
+    
+    const { identifier, repolink, tag } = repoFormData;
+    if (!identifier?.trim() || !repolink?.trim()) {
+      setUiMessage({ type: "error", text: "Identifier and repository link are required" });
+      return { ok: false };
+    }
+
+    setRepoActionLoading(true);
+    const res = await addRepoToContext(projectId, { identifier: identifier.trim(), repolink: repolink.trim(), tag });
+    setRepoActionLoading(false);
+
+    if (!res.ok) {
+      setUiMessage({ type: "error", text: res.error || "Failed to add repository" });
+      return res;
+    }
+
+    setRepositories(res.data || []);
+    resetRepoForm();
+    setUiMessage({ type: "success", text: "Repository added successfully" });
+    return { ok: true, data: res.data };
+  }, [projectId, repoFormData, addRepoToContext, resetRepoForm]);
+
+  const updateRepositoryItem = useCallback(async () => {
+    if (!projectId || !editingRepoId) return { ok: false, error: "Invalid project or repository id" };
+    
+    const { identifier, repolink, tag } = repoFormData;
+    if (!identifier?.trim() || !repolink?.trim()) {
+      setUiMessage({ type: "error", text: "Identifier and repository link are required" });
+      return { ok: false };
+    }
+
+    setRepoActionLoading(true);
+    const res = await updateRepoInContext(projectId, editingRepoId, { identifier: identifier.trim(), repolink: repolink.trim(), tag });
+    setRepoActionLoading(false);
+
+    if (!res.ok) {
+      setUiMessage({ type: "error", text: res.error || "Failed to update repository" });
+      return res;
+    }
+
+    setRepositories(res.data || []);
+    resetRepoForm();
+    setUiMessage({ type: "success", text: "Repository updated successfully" });
+    return { ok: true, data: res.data };
+  }, [projectId, editingRepoId, repoFormData, updateRepoInContext, resetRepoForm]);
+
+  const deleteRepositoryItem = useCallback(async (repoId) => {
+    if (!projectId || !repoId) return { ok: false, error: "Invalid project or repository id" };
+    
+    const confirmed = window.confirm("Are you sure you want to delete this repository?");
+    if (!confirmed) return { ok: false };
+
+    setRepoActionLoading(true);
+    const res = await deleteRepoFromContext(projectId, repoId);
+    setRepoActionLoading(false);
+
+    if (!res.ok) {
+      setUiMessage({ type: "error", text: res.error || "Failed to delete repository" });
+      return res;
+    }
+
+    setRepositories(res.data || []);
+    setUiMessage({ type: "success", text: "Repository deleted successfully" });
+    return { ok: true, data: res.data };
+  }, [projectId, deleteRepoFromContext]);
+
+  const saveOrUpdateRepository = useCallback(async () => {
+    if (editingRepoId) {
+      return await updateRepositoryItem();
+    }
+    return await addRepository();
+  }, [editingRepoId, updateRepositoryItem, addRepository]);
+
   return {
     docs,
     loading,
@@ -416,5 +570,19 @@ export const useKnowledgebase = (projectId) => {
 
     // Sync status exports
     syncStatus,
+
+    // Multi-repository exports
+    repositories,
+    repoFormData,
+    handleRepoFormChange,
+    editingRepoId,
+    repoActionLoading,
+    analyzingRepoId,
+    repoSyncStatuses,
+    startEditRepository,
+    cancelEditRepository,
+    saveOrUpdateRepository,
+    deleteRepositoryItem,
+    resetRepoForm,
   };
 };

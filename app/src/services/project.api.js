@@ -34,3 +34,30 @@ export const saveProjectPatTokenApi = async (id, pat_token) => {
   const response = await apiClient.patch(`/projects/${id}/pat-token`, { pat_token });
   return response.data;
 };
+
+// ============ Repository Management APIs ============
+
+export const getRepositoriesApi = async (projectId) => {
+  const response = await apiClient.get(`/projects/${projectId}/repositories`);
+  return response.data;
+};
+
+export const addRepositoryApi = async (projectId, repoData) => {
+  const response = await apiClient.post(`/projects/${projectId}/repositories`, repoData);
+  return response.data;
+};
+
+export const updateRepositoryApi = async (projectId, repoId, repoData) => {
+  const response = await apiClient.put(`/projects/${projectId}/repositories/${repoId}`, repoData);
+  return response.data;
+};
+
+export const deleteRepositoryApi = async (projectId, repoId) => {
+  const response = await apiClient.delete(`/projects/${projectId}/repositories/${repoId}`);
+  return response.data;
+};
+
+export const getRepositoryApi = async (projectId, repoId) => {
+  const response = await apiClient.get(`/projects/${projectId}/repositories/${repoId}`);
+  return response.data;
+};
