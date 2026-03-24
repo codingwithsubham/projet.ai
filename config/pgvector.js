@@ -106,11 +106,42 @@ const healthCheck = async () => {
   }
 };
 
+/**
+ * Initialize PG Vector connection and ensure required indexes exist
+ * Call this once during server startup
+ * 
+ * @returns {Promise<{healthy: boolean, ftsIndex: boolean}>}
+ */
+const initializePgVector = async () => {
+  const result = { healthy: false, ftsIndex: false };
+
+  // Health check
+  const pgHealth = await healthCheck();
+  if (pgHealth.healthy) {
+    console.log(`✅ PG Vector connected (${pgHealth.latency}ms)`);
+    result.healthy = true;
+
+    // Ensure FTS index exists for hybrid search
+    try {
+      const { ensureFtsIndex } = require("../common/sql-queries");
+      const indexResult = await ensureFtsIndex(getPool());
+      result.ftsIndex = indexResult.created || indexResult.existed;
+    } catch (err) {
+      console.warn(`⚠️ FTS index setup skipped: ${err.message}`);
+    }
+  } else {
+    console.warn(`⚠️ PG Vector connection issue: ${pgHealth.error}`);
+  }
+
+  return result;
+};
+
 module.exports = {
   getConnectionConfig,
   getPool,
   closePgVector,
   healthCheck,
+  initializePgVector,
   VECTOR_DIMENSION,
   TABLE_NAME,
 };

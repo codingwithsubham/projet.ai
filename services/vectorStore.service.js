@@ -194,11 +194,41 @@ const closeAll = async () => {
   console.log("✅ Vector store connections closed");
 };
 
+// Lazy-load hybrid search to avoid circular dependencies
+let _hybridSearchService = null;
+const getHybridSearchService = () => {
+  if (!_hybridSearchService) {
+    _hybridSearchService = require("./hybridSearch.service");
+  }
+  return _hybridSearchService;
+};
+
+/**
+ * Hybrid search combining semantic (vector) and keyword (BM25) search
+ * Uses Reciprocal Rank Fusion (RRF) for result merging
+ * 
+ * @param {Object} options
+ * @param {Object} options.project - Project object
+ * @param {string} options.query - Search query
+ * @param {number} [options.topK=5] - Number of results
+ * @param {Object} [options.filter] - Metadata filter
+ * @param {number} [options.minScore] - Minimum similarity threshold
+ * @returns {Promise<Array<{content: string, metadata: object, score: number}>>}
+ */
+const hybridSearch = async (options) => {
+  const { hybridSearch: doHybridSearch } = getHybridSearchService();
+  return doHybridSearch({
+    ...options,
+    semanticSearchFn: similaritySearch,
+  });
+};
+
 module.exports = {
   getVectorStore,
   createEmbeddingsClient,
   addDocuments,
   similaritySearch,
+  hybridSearch,
   deleteDocuments,
   clearProjectDocuments,
   clearCache,

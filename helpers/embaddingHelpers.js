@@ -7,7 +7,8 @@
 
 const { loadWebDocument, loadGithubRepo, countUniqueFiles } = require("./documentLoaders");
 const { indexWebpage, indexCodebase } = require("../services/indexing.service");
-const { similaritySearch } = require("../services/vectorStore.service");
+const { similaritySearch, hybridSearch } = require("../services/vectorStore.service");
+const { RETRIEVAL_MODES } = require("../common/rag-constants");
 const projectService = require("../services/project.service");
 const SyncStatus = require("../models/SyncStatusModel");
 
@@ -231,21 +232,38 @@ const syncCodebaseAsync = async (projectId, repoData = null) => {
 
 /**
  * Query vectors for RAG context
+ * Supports multiple retrieval modes: semantic (default), hybrid, keyword
  * 
  * @param {Object} options
  * @param {Object} options.project - Project object
  * @param {string} options.query - Query text
  * @param {number} [options.topK=5] - Number of results
  * @param {Object} [options.filter] - Optional metadata filter (e.g., { repoId, repoTag })
+ * @param {number} [options.minScore] - Minimum similarity score threshold
+ * @param {string} [options.retrievalMode='semantic'] - Retrieval strategy: 'semantic' | 'hybrid' | 'keyword'
  * @returns {Promise<Array>} Relevant documents with repository metadata
  */
-const queryVectors = async ({ project, query, topK = 5, filter = {}, minScore = null }) => {
-  console.log(`\n🔍 Querying vectors for project: ${project?._id}`);
+const queryVectors = async ({ 
+  project, 
+  query, 
+  topK = 5, 
+  filter = {}, 
+  minScore = null,
+  retrievalMode = RETRIEVAL_MODES.SEMANTIC,
+}) => {
+  console.log(`\n🔍 Querying vectors for project: ${project?._id} (mode: ${retrievalMode})`);
   
   const searchOptions = { project, query, topK, filter };
   if (minScore !== null) searchOptions.minScore = minScore;
   
-  const results = await similaritySearch(searchOptions);
+  // Route to appropriate search strategy based on retrieval mode
+  let results;
+  if (retrievalMode === RETRIEVAL_MODES.HYBRID) {
+    results = await hybridSearch(searchOptions);
+  } else {
+    // Default to semantic search (also handles 'keyword' fallback for now)
+    results = await similaritySearch(searchOptions);
+  }
   
   console.log(`✅ Found ${results.length} relevant chunks`);
   

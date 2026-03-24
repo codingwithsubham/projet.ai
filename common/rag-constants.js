@@ -83,6 +83,61 @@ const getChunksForIntent = (intent) => {
   return CONTEXT_CHUNKS_BY_INTENT[intent] || DEFAULT_CONTEXT_CHUNKS;
 };
 
+/**
+ * Retrieval modes for search strategy selection
+ * Allows intent-based routing to different search algorithms
+ */
+const RETRIEVAL_MODES = {
+  SEMANTIC: "semantic",   // Dense vector search only (current default)
+  HYBRID: "hybrid",       // Semantic + BM25 keyword search with RRF fusion
+  KEYWORD: "keyword",     // BM25 keyword search only
+};
+
+/**
+ * Hybrid search configuration
+ * Tunable parameters for balancing semantic vs keyword search
+ */
+const HYBRID_CONFIG = {
+  alpha: 0.7,              // Weight for semantic results (1-alpha for keyword)
+  rrfK: 60,                // RRF constant (standard value, higher = more weight to lower ranks)
+  keywordBoostThreshold: 3, // Boost keyword weight if query has ≤N words
+  keywordBoostAlpha: 0.5,   // Alpha to use when keyword boost is active
+};
+
+/**
+ * Intent → Retrieval mode mapping
+ * Determines which search strategy to use based on user intent
+ */
+const RETRIEVAL_MODE_BY_INTENT = {
+  [RAG_INTENTS.READ]: RETRIEVAL_MODES.SEMANTIC,           // Semantic for explanations
+  [RAG_INTENTS.WRITE]: RETRIEVAL_MODES.HYBRID,            // Hybrid for code changes
+  [RAG_INTENTS.IMPLEMENTATION]: RETRIEVAL_MODES.HYBRID,   // Hybrid for implementations
+  [RAG_INTENTS.GENERAL]: RETRIEVAL_MODES.SEMANTIC,        // Semantic for general queries
+};
+
+/**
+ * Get retrieval mode for a given intent
+ * @param {string} intent - One of RAG_INTENTS values
+ * @returns {string} Retrieval mode
+ */
+const getRetrievalModeForIntent = (intent) => {
+  return RETRIEVAL_MODE_BY_INTENT[intent] || RETRIEVAL_MODES.SEMANTIC;
+};
+
+/**
+ * Calculate effective alpha based on query characteristics
+ * Short queries (likely specific terms) get boosted keyword weight
+ * @param {string} query - User query
+ * @returns {number} Effective alpha for hybrid search
+ */
+const getEffectiveAlpha = (query) => {
+  const wordCount = (query || "").trim().split(/\s+/).length;
+  if (wordCount <= HYBRID_CONFIG.keywordBoostThreshold) {
+    return HYBRID_CONFIG.keywordBoostAlpha;
+  }
+  return HYBRID_CONFIG.alpha;
+};
+
 module.exports = {
   MAX_CONTEXT_CHUNKS,
   MAX_CONTEXT_CHARS,
@@ -94,4 +149,10 @@ module.exports = {
   DEFAULT_CONTEXT_CHUNKS,
   getThresholdForIntent,
   getChunksForIntent,
+  // Hybrid search exports
+  RETRIEVAL_MODES,
+  HYBRID_CONFIG,
+  RETRIEVAL_MODE_BY_INTENT,
+  getRetrievalModeForIntent,
+  getEffectiveAlpha,
 };

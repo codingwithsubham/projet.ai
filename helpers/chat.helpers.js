@@ -10,6 +10,8 @@ const {
   RAG_INTENTS,
   getThresholdForIntent,
   getChunksForIntent,
+  RETRIEVAL_MODES,
+  getRetrievalModeForIntent,
 } = require("../common/rag-constants");
 
 // Import repo detection utilities
@@ -68,7 +70,8 @@ const buildRagContext = async (project, query, options = {}) => {
 
     const minScore = getThresholdForIntent(intent);
     const topK = getChunksForIntent(intent);
-    console.log(`📊 Using ${intent} intent: threshold=${minScore}, chunks=${topK}`);
+    const retrievalMode = getRetrievalModeForIntent(intent);
+    console.log(`📊 Using ${intent} intent: threshold=${minScore}, chunks=${topK}, mode=${retrievalMode}`);
 
     const results = await queryVectors({
       project,
@@ -76,6 +79,7 @@ const buildRagContext = async (project, query, options = {}) => {
       topK,
       filter,
       minScore,
+      retrievalMode,
     });
 
     if (!results.length) {
@@ -264,6 +268,7 @@ module.exports = {
   detectRepoTagsFromQuery,     // from ./repoDetection
   REPO_TAG_KEYWORDS,           // from ../common/repo-tags
   RAG_INTENTS,                 // from ../common/rag-constants
+  RETRIEVAL_MODES,             // from ../common/rag-constants
   MAX_CONTEXT_CHUNKS,          // from ../common/rag-constants
   MAX_CONTEXT_CHARS,           // from ../common/rag-constants
   MAX_PREVIOUS_CONVERSATIONS,  // from ../common/rag-constants
