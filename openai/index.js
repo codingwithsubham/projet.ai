@@ -27,11 +27,11 @@ const createLlmForProject = (project) => {
 };
 
 // Lightweight LLM for intent classification (fast, deterministic)
-const createClassificationLLM = (project, model = "gpt-4o-mini") => {
+const createClassificationLLM = (project, mm) => {
   if (!project?.openapikey) {
     throw new Error("Project API key required for LLM classification");
   }
-
+  const model = process.env.RESOANING_MODEL || "openai.gpt-4o-mini";
   return new ChatOpenAI({
     model,
     apiKey: project.openapikey,

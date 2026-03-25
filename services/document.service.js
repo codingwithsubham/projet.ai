@@ -99,6 +99,50 @@ const deleteDocumentById = async (id, user) => {
   return { success: true, message: "Document deleted successfully" };
 };
 
+/**
+ * Update document content (for editing)
+ */
+const updateDocumentContent = async (id, content, user) => {
+  const document = await Document.findById(id);
+
+  if (!document) return { success: false, message: "Document not found" };
+
+  if (
+    String(user.id) !== String(document.createdBy) &&
+    String(user.role) !== "admin"
+  ) {
+    return { success: false, message: "Unauthorized to edit this document" };
+  }
+
+  document.content = content;
+  await document.save();
+
+  return { success: true, data: document, message: "Document updated successfully" };
+};
+
+/**
+ * Mark document as published
+ */
+const markDocumentPublished = async (id, publishedDocId, user) => {
+  const document = await Document.findById(id);
+
+  if (!document) return { success: false, message: "Document not found" };
+
+  if (
+    String(user.id) !== String(document.createdBy) &&
+    String(user.role) !== "admin"
+  ) {
+    return { success: false, message: "Unauthorized" };
+  }
+
+  document.status = "published";
+  document.publishedAt = new Date();
+  document.publishedDocId = publishedDocId;
+  await document.save();
+
+  return { success: true, data: document, message: "Document published" };
+};
+
 module.exports = {
   createDocument,
   getAllDocuments,
@@ -109,4 +153,6 @@ module.exports = {
   completeDocumentGeneration,
   searchDocuments,
   deleteDocumentById,
+  updateDocumentContent,
+  markDocumentPublished,
 };

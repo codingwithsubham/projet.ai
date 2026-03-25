@@ -17,6 +17,12 @@ export const searchDocuments = (search, startDate, endDate) => {
   return apiClient.get("/documents/search", { params });
 };
 
+export const updateDocumentContent = (id, content) =>
+  apiClient.patch(`/documents/${id}/content`, { content });
+
+export const markDocumentPublished = (id, publishedDocId) =>
+  apiClient.patch(`/documents/${id}/publish`, { publishedDocId });
+
 export const deleteDocument = (id) =>
   apiClient.delete(`/documents/${id}`);
 
@@ -25,5 +31,7 @@ export default {
   getDocuments,
   getDocumentById,
   searchDocuments,
+  updateDocumentContent,
+  markDocumentPublished,
   deleteDocument,
 };

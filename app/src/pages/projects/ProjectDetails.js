@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectDetails } from "../../hooks/useProjectDetails";
 import KnowledgebasePanel from "../../components/knowledgebase/KnowledgebasePanel";
+import IDEConnectModal from "../../components/IDEConnectModal";
 
 const ProjectDetails = () => {
   const navigate = useNavigate();
   const { id, project, loading, error, canAccessKnowledgebase } = useProjectDetails();
+  const [showIDEModal, setShowIDEModal] = useState(false);
 
   return (
     <section className="project-details-page">
@@ -52,9 +54,26 @@ const ProjectDetails = () => {
             <p className="kb-muted" style={{ marginTop: 12 }}>
               Use the <strong>💬 Chat</strong> menu in the sidebar to talk with the AI agent.
             </p>
+
+            <div className="project-dev-actions">
+              <button
+                type="button"
+                className="projects-btn projects-btn--primary"
+                onClick={() => setShowIDEModal(true)}
+              >
+                🔌 Connect to Your IDE
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      <IDEConnectModal
+        isOpen={showIDEModal}
+        onClose={() => setShowIDEModal(false)}
+        projectName={project?.name}
+        apiKey={null}
+      />
     </section>
   );
 };

@@ -30,6 +30,7 @@ const RAG_INTENTS = {
   WRITE: "write",
   IMPLEMENTATION: "implementation",
   GENERAL: "general",
+  DOCGEN: "docgen", // Document/presentation generation from code
 };
 
 /**
@@ -42,6 +43,7 @@ const SIMILARITY_THRESHOLDS = {
   [RAG_INTENTS.WRITE]: 0.55,         // Precise context for code changes
   [RAG_INTENTS.IMPLEMENTATION]: 0.6, // Highest precision for new implementations
   [RAG_INTENTS.GENERAL]: 0.5,        // Balanced default threshold
+  [RAG_INTENTS.DOCGEN]: 0.3,         // Very inclusive for doc generation from code
 };
 
 /**
@@ -53,6 +55,7 @@ const CONTEXT_CHUNKS_BY_INTENT = {
   [RAG_INTENTS.WRITE]: 8,            // More context for code changes
   [RAG_INTENTS.IMPLEMENTATION]: 10,  // Maximum context for complex implementations
   [RAG_INTENTS.GENERAL]: 6,          // Balanced default
+  [RAG_INTENTS.DOCGEN]: 10,          // Maximum context for document generation
 };
 
 /**
@@ -113,6 +116,7 @@ const RETRIEVAL_MODE_BY_INTENT = {
   [RAG_INTENTS.WRITE]: RETRIEVAL_MODES.HYBRID,            // Hybrid for code changes
   [RAG_INTENTS.IMPLEMENTATION]: RETRIEVAL_MODES.HYBRID,   // Hybrid for implementations
   [RAG_INTENTS.GENERAL]: RETRIEVAL_MODES.SEMANTIC,        // Semantic for general queries
+  [RAG_INTENTS.DOCGEN]: RETRIEVAL_MODES.HYBRID,           // Hybrid for document generation
 };
 
 /**

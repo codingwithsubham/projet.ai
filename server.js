@@ -3,7 +3,7 @@ const app = require("./app");
 const { connectDB } = require("./config/db");
 const { verifyLangSmithConnection } = require("./openai/langSmith");
 const { initializePgVector } = require("./config/pgvector");
-// const { bootstrapUsers } = require("./services/auth.service");
+const { bootstrapUsers } = require("./services/auth.service");
 const { refreshApiKeyCache } = require("./services/apiKeyCache.service");
 
 const port = process.env.PORT || 5000;
@@ -11,12 +11,13 @@ const port = process.env.PORT || 5000;
 async function start() {
   await verifyLangSmithConnection();
   await connectDB();
-  // await bootstrapUsers();
+  await bootstrapUsers();
   await refreshApiKeyCache();
   await initializePgVector();
 
   app.listen(port, () => {
     console.log(`✅ Server Started on PORT ${port}.`);
+    console.log('===='.repeat(20));
   });
 }
 

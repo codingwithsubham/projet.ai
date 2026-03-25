@@ -7,6 +7,7 @@ import {
   analyzeKnowledgeRepositoryApi,
   getSyncStatusByIdApi,
   getSyncStatusByProjectApi,
+  getSyncHistoryApi,
 } from "../services/knowledgebase.api";
 
 export const useKnowledgebase = (projectId) => {
@@ -102,7 +103,7 @@ export const useKnowledgebase = (projectId) => {
     setIsPatEditing(false);
   }, [getProjectById, maskPat, projectId]);
 
-  // Load existing sync status on mount
+  // Load existing sync status on mount (legacy single repo)
   const loadSyncStatus = useCallback(async () => {
     if (!projectId) return;
     try {
@@ -160,11 +161,48 @@ export const useKnowledgebase = (projectId) => {
     }
   }, [projectId]);
 
+  // Load sync statuses for all repositories (multi-repo)
+  const loadRepoSyncStatuses = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      // Get sync history and build a map of repoId -> latest completed sync
+      const res = await getSyncHistoryApi(projectId, 50); // Get more to cover all repos
+      const history = Array.isArray(res?.data) ? res.data : [];
+
+      // Build map: repoId -> latest sync status (prefer completed, then latest)
+      const statusMap = {};
+      for (const sync of history) {
+        const repoId = sync.repoInfo?.repoId;
+        if (!repoId) continue;
+
+        // If we don't have this repo yet, or this sync is more recent/better status
+        if (!statusMap[repoId] || 
+            (statusMap[repoId].status !== "completed" && sync.status === "completed") ||
+            (statusMap[repoId].status === sync.status && new Date(sync.completedAt) > new Date(statusMap[repoId].completedAt))) {
+          statusMap[repoId] = {
+            syncId: sync.syncId || sync._id,
+            status: sync.status,
+            progress: sync.progress || { currentStep: "", percentage: 0 },
+            stats: sync.stats,
+            error: sync.error,
+            completedAt: sync.completedAt,
+            startedAt: sync.startedAt,
+          };
+        }
+      }
+
+      setRepoSyncStatuses(statusMap);
+    } catch (err) {
+      // Ignore - no sync history exists yet
+    }
+  }, [projectId]);
+
   useEffect(() => {
     fetchDocs();
     loadProjectRepo();
     loadSyncStatus();
-  }, [fetchDocs, loadProjectRepo, loadSyncStatus]);
+    loadRepoSyncStatuses();
+  }, [fetchDocs, loadProjectRepo, loadSyncStatus, loadRepoSyncStatuses]);
 
   const saveRepoLink = useCallback(async () => {
     if (!projectId) return { ok: false, error: "Invalid project id" };

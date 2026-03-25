@@ -6,8 +6,9 @@
  * - Keyword: PostgreSQL full-text search (BM25-like scoring)
  * - Fusion: Reciprocal Rank Fusion (RRF) algorithm
  * 
- * This is true hybrid retrieval where both searches run independently,
- * allowing keyword search to surface documents that semantic might miss.
+ * SCHEMA-PER-PROJECT ISOLATION:
+ * Each project's data is stored in its own PostgreSQL schema (project_{id}).
+ * Queries automatically target the correct schema - no cross-project data leaks.
  * 
  * Architecture:
  *   Query ──┬──► Semantic Search (LangChain) ──► Results A
@@ -20,15 +21,17 @@
  */
 
 const { getPool } = require("../config/pgvector");
-const { buildFullTextSearchQuery } = require("../common/sql-queries");
+const { buildFullTextSearchQuery, getProjectTableName } = require("../common/sql-queries");
 const { HYBRID_CONFIG, getEffectiveAlpha } = require("../common/rag-constants");
 
 /**
  * Perform full-text (BM25-like) search using PostgreSQL tsvector
  * Runs independently from semantic search for true hybrid retrieval
  * 
+ * Uses schema-per-project isolation - queries target project_{id}.embeddings
+ * 
  * @param {Object} options
- * @param {string} options.projectId - Project ID for isolation
+ * @param {string} options.projectId - Project ID for schema isolation
  * @param {string} options.query - Search query
  * @param {number} options.topK - Number of results
  * @param {Object} [options.filter] - Metadata filter (repoId, repoTag)
@@ -51,18 +54,23 @@ const fullTextSearch = async ({ projectId, query, topK = 10, filter = {} }) => {
   if (!searchTerms) return [];
 
   try {
-    // Build parameterized query
+    // Get project-specific table name (schema-isolated)
+    const tableName = getProjectTableName(projectId);
+    
+    // Build parameterized query for schema mode
     const hasRepoId = Boolean(filter.repoId);
     const hasRepoTag = Boolean(filter.repoTag);
     
     const { query: sqlQuery, limitParam } = buildFullTextSearchQuery({
+      tableName,
+      useSchemaMode: true, // Use content column, no projectId filter
       hasRepoId,
       hasRepoTag,
-      paramOffset: 3,
+      paramOffset: 2, // Start after search terms ($1)
     });
 
-    // Build params array
-    const params = [projectId, searchTerms];
+    // Build params array - no projectId needed (schema isolation)
+    const params = [searchTerms];
     if (hasRepoId) params.push(filter.repoId);
     if (hasRepoTag) params.push(filter.repoTag);
     params.push(topK);

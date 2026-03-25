@@ -3,6 +3,12 @@
  * 
  * Provides document indexing with deduplication using LangChain's PGVectorStore.
  * Uses content hashing to prevent duplicate embeddings.
+ * 
+ * SCHEMA-PER-PROJECT ISOLATION:
+ * Documents are now stored in project-specific schemas (project_{id}.embeddings).
+ * The vectorStore.service automatically ensures the schema exists before indexing.
+ * ProjectId is kept in metadata for debugging/analytics purposes, but schema isolation
+ * provides the actual security boundary.
  */
 
 const crypto = require("crypto");

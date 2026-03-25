@@ -152,10 +152,72 @@ const deleteDocument = async (req, res) => {
   }
 };
 
+const updateDocumentContent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid document ID" });
+    }
+
+    if (typeof content !== "string") {
+      return res.status(400).json({ success: false, message: "Content is required" });
+    }
+
+    const result = await documentService.updateDocumentContent(id, content, req.user);
+
+    if (!result.success) {
+      return res.status(403).json({ success: false, message: result.message });
+    }
+
+    return res.status(200).json({ success: true, message: result.message, data: result.data });
+  } catch (error) {
+    console.error("Update document error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update document",
+      error: error.message,
+    });
+  }
+};
+
+const markDocumentPublished = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { publishedDocId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid document ID" });
+    }
+
+    if (!publishedDocId || !mongoose.Types.ObjectId.isValid(publishedDocId)) {
+      return res.status(400).json({ success: false, message: "Valid publishedDocId is required" });
+    }
+
+    const result = await documentService.markDocumentPublished(id, publishedDocId, req.user);
+
+    if (!result.success) {
+      return res.status(403).json({ success: false, message: result.message });
+    }
+
+    return res.status(200).json({ success: true, message: result.message, data: result.data });
+  } catch (error) {
+    console.error("Mark published error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to mark document as published",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createDocument,
   getAllDocuments,
   getDocumentById,
   searchDocuments,
   deleteDocument,
+  updateDocumentContent,
+  markDocumentPublished,
 };

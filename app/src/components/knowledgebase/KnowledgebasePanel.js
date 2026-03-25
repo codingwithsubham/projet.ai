@@ -237,11 +237,30 @@ const KnowledgebasePanel = ({ projectId }) => {
                         </div>
                       )}
 
-                      {/* Last Sync Status */}
-                      {repoSyncStat && repoSyncStat.status === "completed" && repoSyncStat.stats && (
-                        <div className="kb-sync-status kb-sync-status--success kb-sync-status--inline">
-                          Synced: {repoSyncStat.stats.totalChunks || 0} chunks from {repoSyncStat.stats.totalFiles || 0} files
-                        </div>
+                      {/* Sync Status Display */}
+                      {!isSyncing && (
+                        <>
+                          {repoSyncStat && repoSyncStat.status === "completed" && repoSyncStat.stats ? (
+                            <div className="kb-sync-status kb-sync-status--success kb-sync-status--inline">
+                              <span className="kb-sync-status__info">
+                                ✓ Synced: {repoSyncStat.stats.totalChunks || 0} chunks from {repoSyncStat.stats.totalFiles || 0} files
+                              </span>
+                              {repoSyncStat.completedAt && (
+                                <span className="kb-sync-status__date">
+                                  {new Date(repoSyncStat.completedAt).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : repoSyncStat && repoSyncStat.status === "failed" ? (
+                            <div className="kb-sync-status kb-sync-status--error kb-sync-status--inline">
+                              ✗ Sync failed{repoSyncStat.error?.message ? `: ${repoSyncStat.error.message}` : ""}
+                            </div>
+                          ) : (
+                            <div className="kb-sync-status kb-sync-status--pending kb-sync-status--inline">
+                              ○ Not synced yet
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 

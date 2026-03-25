@@ -120,6 +120,44 @@ export const useDocument = () => {
     }
   }, [fetchDocuments]);
 
+  const updateDocumentContent = useCallback(async (id, content) => {
+    setActionLoading(true);
+    try {
+      const response = await documentAPI.updateDocumentContent(id, content);
+      const data = response.data || response;
+
+      if (data.success) {
+        setSelectedDocument(data.data);
+        return { success: true, data: data.data };
+      }
+
+      return { success: false, error: data.message || "Failed to update document" };
+    } catch (error) {
+      return { success: false, error: error.message || "An error occurred" };
+    } finally {
+      setActionLoading(false);
+    }
+  }, []);
+
+  const markDocumentPublished = useCallback(async (id, publishedDocId) => {
+    setActionLoading(true);
+    try {
+      const response = await documentAPI.markDocumentPublished(id, publishedDocId);
+      const data = response.data || response;
+
+      if (data.success) {
+        setSelectedDocument(data.data);
+        return { success: true, data: data.data };
+      }
+
+      return { success: false, error: data.message || "Failed to mark as published" };
+    } catch (error) {
+      return { success: false, error: error.message || "An error occurred" };
+    } finally {
+      setActionLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (documents.length === 0 && (isPM || isAdmin)) {
       fetchDocuments();
@@ -150,6 +188,8 @@ export const useDocument = () => {
     getDocumentById,
     createDocument,
     deleteDocument,
+    updateDocumentContent,
+    markDocumentPublished,
 
     isPM,
     isAdmin,

@@ -167,6 +167,7 @@ const getSyncHistory = async (projectId, limit = 10) => {
     completedAt: s.completedAt,
     stats: s.stats,
     error: s.error?.message ? s.error : null,
+    repoInfo: s.repoInfo || null,
     createdAt: s.createdAt,
   }));
 };

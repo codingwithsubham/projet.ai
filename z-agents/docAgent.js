@@ -1,205 +1,275 @@
-const { createLlmForProject } = require("../openai");
+/**
+ * LangGraph Document Agent - Generates professional markdown documents
+ * Uses a multi-node graph: Initializer → Planner → SectionGenerator (loop) → Finalizer
+ */
+
+const { StateGraph, END, START, Annotation } = require("@langchain/langgraph");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
+
+// Internal imports
+const { createLlmForProject } = require("../openai");
 const { buildRagContext } = require("../helpers/chat.helpers");
 const documentService = require("../services/document.service");
 
+// Constants and helpers
+const { SECTION_TYPES } = require("../common/doc-constants");
+const {
+  SYSTEM_PROMPTS,
+  buildPlannerPrompt,
+  buildFallbackPlanForTopic,
+} = require("../helpers/docAgentPrompts");
+const {
+  extractSearchQuery,
+  generateSectionMarkdown,
+  buildDocumentTitle,
+  getSectionSeparator,
+  appendSection,
+  parseJsonFromResponse,
+  calculateTotalSections,
+  getSectionDetails,
+} = require("../helpers/docAgentHelpers");
+
+// ============================================
+// STATE DEFINITION
+// ============================================
+
+const DocAgentState = Annotation.Root({
+  // Input
+  documentId: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+  name: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
+  prompt: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
+  project: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+
+  // Working state
+  llm: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+  ragContext: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
+  plan: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+  currentSectionIndex: Annotation({ reducer: (a, b) => b ?? a, default: () => 0 }),
+  markdownContent: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
+  startTime: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+
+  // Output
+  error: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+  completed: Annotation({ reducer: (a, b) => b ?? a, default: () => false }),
+});
+
+// ============================================
+// GRAPH NODES
+// ============================================
+
 /**
- * Step 1: Plan the document - outline sections
+ * Node 1: Initialize - Set up LLM and get RAG context
  */
-const planDocument = async (prompt, ragContext, llm) => {
-  console.log(`\n📋 Planning document for: ${prompt.substring(0, 50)}`);
+const initializeNode = async (state) => {
+  console.log(`\n📄 [Doc Agent] Initializing document generation...`);
+  console.log(`   Name: ${state.name}`);
+  console.log(`   Topic: ${state.prompt?.substring(0, 50)}...`);
 
-  const systemPrompt = `You are a professional document strategist. Return ONLY valid JSON, no markdown.`;
+  const startTime = Date.now();
+  const llm = createLlmForProject(state.project);
 
-  const userPrompt = `Topic: ${prompt}
-
-Context from knowledge base:
-${ragContext?.substring(0, 3000) || "No additional context available."}
-
-Create a detailed outline for a professional document on this topic.
-
-Return JSON format:
-{
-  "summary": "A concise 1-2 sentence overview of what this document covers",
-  "sections": [
-    {
-      "title": "Section Title",
-      "keyPoints": ["Key point 1", "Key point 2", "Key point 3"]
+  let ragContext = "";
+  if (state.project) {
+    try {
+      // Use document name + prompt as query with lower threshold for better code matching
+      // Extract key terms from name and prompt for semantic search
+      const searchQuery = extractSearchQuery(state.name, state.prompt);
+      console.log(`   🔎 Search query: ${searchQuery.substring(0, 60)}...`);
+      
+      ragContext = await buildRagContext(state.project, searchQuery, {
+        intent: "docgen", // Lower threshold (0.3) + more chunks for doc generation
+        autoDetectRepo: true,
+      });
+    } catch (error) {
+      console.warn(`   ⚠️ RAG context failed: ${error.message}`);
     }
-  ]
-}
+  }
 
-Rules:
-- 4 to 6 sections
-- Each section must have 3-4 specific keyPoints with real content (not placeholders)
-- Section titles should be clear and descriptive
-- KeyPoints should be actual content that will be expanded into prose`;
+  await documentService.updateDocumentProgress(state.documentId, "Initializing...");
 
-  const response = await llm.invoke([
-    new SystemMessage(systemPrompt),
+  return { llm, ragContext, startTime };
+};
+
+/**
+ * Node 2: Planner - Create document outline
+ */
+const plannerNode = async (state) => {
+  console.log(`\n📋 [Doc Agent] Planning document structure...`);
+
+  await documentService.updateDocumentProgress(state.documentId, "Planning document structure...");
+
+  const userPrompt = buildPlannerPrompt({
+    prompt: state.prompt,
+    ragContext: state.ragContext,
+  });
+
+  const response = await state.llm.invoke([
+    new SystemMessage(SYSTEM_PROMPTS.PLANNER),
     new HumanMessage(userPrompt),
   ]);
 
+  let plan = parseJsonFromResponse(response.content);
+
+  if (!plan) {
+    plan = buildFallbackPlanForTopic(state.prompt);
+  }
+
+  // Calculate total sections including intro and conclusion
+  plan.totalSections = calculateTotalSections(plan);
+
+  console.log(`   ✅ Plan created with ${plan.sections.length} content sections`);
+
+  // Initialize markdown with document title
+  const markdownContent = buildDocumentTitle(state.name);
+
+  return { plan, currentSectionIndex: 0, markdownContent };
+};
+
+/**
+ * Node 3: Section Generator - Generate one section at a time
+ */
+const sectionGeneratorNode = async (state) => {
+  const { plan, currentSectionIndex, documentId, prompt, ragContext, llm, markdownContent } = state;
+  const totalSections = plan.totalSections;
+
+  // Get section details using helper
+  const sectionDetails = getSectionDetails(currentSectionIndex, plan);
+  const { title: sectionTitle, number: sectionNumber, isIntro, isConclusion, keyPoints } = sectionDetails;
+
+  console.log(`\n✍️  [Doc Agent] Generating section ${sectionNumber}/${totalSections}: ${sectionTitle}`);
+  await documentService.updateDocumentProgress(documentId, `Writing Section ${sectionNumber}: ${sectionTitle}`);
+
+  // Generate section markdown
+  const sectionMd = await generateSectionMarkdown({
+    sectionTitle,
+    keyPoints,
+    ragContext: isIntro || isConclusion ? "" : ragContext,
+    documentTopic: prompt,
+    isIntro,
+    isConclusion,
+    summary: plan.summary,
+    llm,
+  });
+
+  // Append to markdown content
+  const separator = getSectionSeparator(currentSectionIndex, totalSections);
+  const updatedMarkdown = appendSection(markdownContent, sectionMd, separator);
+
+  console.log(`   ✅ Section ${sectionNumber} generated`);
+
+  return {
+    markdownContent: updatedMarkdown,
+    currentSectionIndex: currentSectionIndex + 1,
+  };
+};
+
+/**
+ * Node 4: Finalizer - Save document and mark as complete
+ */
+const finalizerNode = async (state) => {
+  const { documentId, markdownContent, startTime } = state;
+
+  console.log(`\n✅ [Doc Agent] Finalizing document...`);
+
+  // Save full content to database
+  await documentService.appendDocumentContent(documentId, markdownContent);
+
+  // Calculate generation time and complete
+  const generationTime = Date.now() - startTime;
+  await documentService.completeDocumentGeneration(documentId, generationTime);
+
+  console.log(`   ✅ Document completed in ${generationTime}ms`);
+
+  return { completed: true };
+};
+
+/**
+ * Conditional edge: Check if more sections need to be generated
+ */
+const shouldContinueGenerating = (state) => {
+  const { currentSectionIndex, plan, error } = state;
+
+  if (error) return "finalizer";
+  if (!plan) return "finalizer";
+  if (currentSectionIndex < plan.totalSections) return "sectionGenerator";
+  return "finalizer";
+};
+
+// ============================================
+// BUILD GRAPH
+// ============================================
+
+const buildDocAgentGraph = () => {
+  const graph = new StateGraph(DocAgentState)
+    .addNode("initializer", initializeNode)
+    .addNode("planner", plannerNode)
+    .addNode("sectionGenerator", sectionGeneratorNode)
+    .addNode("finalizer", finalizerNode)
+    .addEdge(START, "initializer")
+    .addEdge("initializer", "planner")
+    .addEdge("planner", "sectionGenerator")
+    .addConditionalEdges("sectionGenerator", shouldContinueGenerating, {
+      sectionGenerator: "sectionGenerator",
+      finalizer: "finalizer",
+    })
+    .addEdge("finalizer", END);
+
+  return graph.compile();
+};
+
+// ============================================
+// MAIN ENTRY POINT
+// ============================================
+
+/**
+ * Process document request using LangGraph agent
+ * @param {object} params - Document parameters
+ */
+const processDocumentWithAgent = async ({ documentId, name, prompt, project }) => {
+  console.log(`\n🚀 [Doc Agent] Starting LangGraph document generation...`);
+
   try {
-    const jsonMatch = (response.content || "").match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    throw new Error("No JSON found");
-  } catch {
-    return {
-      summary: `A comprehensive document on ${prompt.substring(0, 40)}`,
-      sections: [
-        { title: "Introduction", keyPoints: ["Overview", "Purpose", "Scope"] },
-        { title: "Key Concepts", keyPoints: ["Definition", "Principles", "Framework"] },
-        { title: "Implementation", keyPoints: ["Steps", "Process", "Execution"] },
-        { title: "Conclusion", keyPoints: ["Summary", "Takeaways", "Next Steps"] },
-      ],
+    const agent = buildDocAgentGraph();
+
+    const initialState = {
+      documentId,
+      name,
+      prompt,
+      project,
     };
-  }
-};
 
-/**
- * Step 2: Generate a single section as markdown
- */
-const generateSection = async ({
-  sectionTitle,
-  keyPoints = [],
-  ragContext = "",
-  documentTopic = "",
-  isIntro = false,
-  isConclusion = false,
-  summary = "",
-  llm,
-}) => {
-  console.log(`\n✍️  Generating section: ${sectionTitle}`);
+    // Run the graph
+    const result = await agent.invoke(initialState);
 
-  const systemPrompt = `You are a professional technical writer. Generate document content in clean Markdown format.
-Rules:
-- Use proper Markdown: ## for section heading, ### for sub-headings, **bold**, bullet lists
-- Generate REAL, MEANINGFUL content (not Lorem Ipsum or placeholders)
-- Professional tone, concise and informative
-- Output ONLY the markdown for this section, no preamble`;
-
-  let instruction;
-
-  if (isIntro) {
-    instruction = `Generate an **Executive Summary / Introduction** section for a document titled "${documentTopic}".
-Summary to expand on: "${summary}"
-Include:
-- Brief context and purpose of this document
-- What the reader will learn
-- Why this topic matters
-Format as markdown starting with ## Introduction`;
-  } else if (isConclusion) {
-    instruction = `Generate a **Conclusion** section for a document titled "${documentTopic}".
-Include:
-- Key takeaways recap
-- Recommended next steps
-- Closing thoughts
-Format as markdown starting with ## Conclusion`;
-  } else {
-    const keyPointsText = keyPoints.length > 0
-      ? `\nExpand these key points into detailed prose:\n${keyPoints.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
-      : "";
-
-    const contextText = ragContext ? `\nReference context:\n${ragContext.substring(0, 800)}` : "";
-
-    instruction = `Generate a section titled "## ${sectionTitle}" for a document about "${documentTopic}".
-${keyPointsText}
-${contextText}
-- Write 3-4 paragraphs of substantial, real content
-- Use bullet lists or numbered lists where appropriate
-- Include relevant details, facts, and actionable insights
-- FORBIDDEN: Lorem ipsum, placeholder text, generic filler`;
-  }
-
-  const response = await llm.invoke([
-    new SystemMessage(systemPrompt),
-    new HumanMessage(instruction),
-  ]);
-
-  return (response.content || "").trim();
-};
-
-/**
- * Main document generation workflow
- */
-const processDocumentRequest = async ({ documentId, name, prompt, project }) => {
-  const startTime = Date.now();
-
-  try {
-    console.log(`\n📄 Starting document generation...`);
-    console.log(`   Name: ${name}`);
-    console.log(`   Topic: ${prompt.substring(0, 50)}...`);
-
-    // Create LLM for this project
-    const llm = createLlmForProject(project);
-
-    // Step 1: RAG context
-    let ragContext = "";
-    if (project) {
-      ragContext = await buildRagContext(project, prompt);
+    if (result.error) {
+      throw new Error(result.error);
     }
 
-    // Step 2: Plan
-    await documentService.updateDocumentProgress(documentId, "Planning document structure...");
-    const plan = await planDocument(prompt, ragContext, llm);
-    console.log(`\n📝 Plan:`, JSON.stringify(plan, null, 2));
-
-    // Step 3: Build full markdown - start with title and intro
-    await documentService.updateDocumentProgress(documentId, "Writing Introduction...");
-    let fullMarkdown = `# ${name}\n\n`;
-
-    const introMd = await generateSection({
-      sectionTitle: "Introduction",
-      isIntro: true,
-      documentTopic: prompt,
-      summary: plan.summary,
-      llm,
-    });
-    fullMarkdown += introMd + "\n\n---\n\n";
-
-    // Step 4: Generate each planned section
-    for (let i = 0; i < plan.sections.length; i++) {
-      const section = plan.sections[i];
-      await documentService.updateDocumentProgress(documentId, `Writing Section ${i + 1}: ${section.title}`);
-
-      const sectionMd = await generateSection({
-        sectionTitle: section.title,
-        keyPoints: section.keyPoints || [],
-        ragContext,
-        documentTopic: prompt,
-        llm,
-      });
-      fullMarkdown += sectionMd + "\n\n---\n\n";
-    }
-
-    // Step 5: Conclusion
-    await documentService.updateDocumentProgress(documentId, "Writing Conclusion...");
-    const conclusionMd = await generateSection({
-      sectionTitle: "Conclusion",
-      isConclusion: true,
-      documentTopic: prompt,
-      llm,
-    });
-    fullMarkdown += conclusionMd + "\n";
-
-    // Step 6: Save full content and complete
-    await documentService.appendDocumentContent(documentId, fullMarkdown);
-    const generationTime = Date.now() - startTime;
-    await documentService.completeDocumentGeneration(documentId, generationTime);
-
-    console.log(`\n✅ Document completed in ${generationTime}ms`);
+    console.log(`\n🎉 [Doc Agent] Document generation completed successfully!`);
     return { success: true, message: "Document generated successfully" };
 
   } catch (error) {
-    console.error("❌ Document generation error:", error.message);
-    await documentService.updateDocumentStatus(documentId, "error", error.message);
+    console.error(`\n❌ [Doc Agent] Error:`, error.message);
+
+    await documentService.updateDocumentStatus(
+      documentId,
+      "error",
+      error.message
+    );
+
     return { success: false, error: error.message };
   }
 };
 
+// Legacy function for backward compatibility
+const processDocumentRequest = processDocumentWithAgent;
+
+// ============================================
+// EXPORTS
+// ============================================
+
 module.exports = {
-  processDocumentRequest,
-  planDocument,
-  generateSection,
+  processDocumentWithAgent,
+  processDocumentRequest, // backward compatibility
+  buildDocAgentGraph,
 };

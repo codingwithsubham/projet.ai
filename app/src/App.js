@@ -1,7 +1,7 @@
 import "./App.css";
-import "./mob.css"
-import "./pages/presentations/presentations.css";
-import "./pages/documents/documents.css";
+import "./styles/mob.css"
+import "./styles/presentations.css";
+import "./styles/documents.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/landing/Landing";
 import Dashboard from "./pages/dashboard/Dashboard";

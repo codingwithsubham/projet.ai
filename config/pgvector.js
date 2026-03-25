@@ -88,6 +88,23 @@ const closePgVector = async () => {
 };
 
 /**
+ * Get connection configuration for a specific project schema
+ * Used for schema-per-project isolation
+ * 
+ * @param {string} projectId - Project ID for schema isolation
+ * @returns {Object} Connection configuration with project-specific table
+ */
+const getProjectConnectionConfig = (projectId) => {
+  const { getTableName } = require("../services/schemaManager.service");
+  const config = getConnectionConfig();
+  
+  return {
+    ...config,
+    tableName: getTableName(projectId),
+  };
+};
+
+/**
  * Health check for PG Vector
  * @returns {Promise<{healthy: boolean, latency: number}>}
  */
@@ -122,13 +139,13 @@ const initializePgVector = async () => {
     result.healthy = true;
 
     // Ensure FTS index exists for hybrid search
-    try {
-      const { ensureFtsIndex } = require("../common/sql-queries");
-      const indexResult = await ensureFtsIndex(getPool());
-      result.ftsIndex = indexResult.created || indexResult.existed;
-    } catch (err) {
-      console.warn(`⚠️ FTS index setup skipped: ${err.message}`);
-    }
+    // try {
+    //   const { ensureFtsIndex } = require("../common/sql-queries");
+    //   const indexResult = await ensureFtsIndex(getPool());
+    //   result.ftsIndex = indexResult.created || indexResult.existed;
+    // } catch (err) {
+    //   console.warn(`⚠️ FTS index setup skipped: ${err.message}`);
+    // }
   } else {
     console.warn(`⚠️ PG Vector connection issue: ${pgHealth.error}`);
   }
@@ -138,6 +155,7 @@ const initializePgVector = async () => {
 
 module.exports = {
   getConnectionConfig,
+  getProjectConnectionConfig,
   getPool,
   closePgVector,
   healthCheck,

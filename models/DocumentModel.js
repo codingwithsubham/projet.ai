@@ -11,11 +11,14 @@ const DocumentSchema = new mongoose.Schema(
     content: { type: String, default: "" }, // Full markdown content (single field)
     status: {
       type: String,
-      enum: ["draft", "completed", "error"],
+      enum: ["draft", "completed", "error", "published"],
       default: "draft",
     },
     generationTime: { type: Number, default: 0 },
     errorMessage: { type: String, default: "" },
+    // Publishing fields
+    publishedAt: { type: Date, default: null },
+    publishedDocId: { type: mongoose.Schema.Types.ObjectId, ref: "Doc", default: null },
   },
   {
     timestamps: true,

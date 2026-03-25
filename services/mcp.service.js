@@ -16,7 +16,7 @@ const createMcpServerForProject = (projectId) => {
 
   mcpServer.tool(
     "search_hub",
-    "Queries the knowledge hub for project documents, SRS, user stories, epics, bugs and project information",
+    "Queries the knowledge hub for project codes, documents, SRS, user stories, epics, bugs and project information",
     { query: z.string().describe("The search query") },
     async ({ query }) => {
       const result = await chatService.sendChatMessageToDynamicAgent({

@@ -1433,6 +1433,23 @@ button.projects-btn.icon-btn {
   border: 1px solid #f5c6cb;
 }
 
+.kb-sync-status--pending {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.kb-sync-status__info {
+  display: block;
+}
+
+.kb-sync-status__date {
+  display: block;
+  font-size: 10px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
 .chat-layout {
   display: grid;
   grid-template-columns: 0 1fr;
@@ -2047,4 +2064,294 @@ span.app-navbar__icon.role {
 
 .kb-message--error span {
   overflow-wrap: anywhere;
+}
+
+/* ===================== Developer Actions ===================== */
+.project-dev-actions {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e9ecef;
+}
+
+/* ===================== IDE Connect Modal ===================== */
+.ide-connect-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.ide-connect-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.ide-connect-modal__header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ide-connect-modal__close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.ide-connect-modal__close:hover {
+  opacity: 1;
+}
+
+.ide-connect-modal__content {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  min-height: 400px;
+  max-height: calc(90vh - 70px);
+  overflow: hidden;
+}
+
+.ide-connect-modal__left {
+  background: #f8f9fa;
+  padding: 20px;
+  border-right: 1px solid #e9ecef;
+  overflow-y: auto;
+}
+
+.ide-connect-modal__left h4 {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #6c757d;
+  letter-spacing: 0.5px;
+}
+
+.ide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ide-list__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.ide-list__item:hover {
+  border-color: #007bff;
+  background: #f0f7ff;
+}
+
+.ide-list__item--active {
+  border-color: #007bff;
+  background: #007bff;
+  color: #fff;
+}
+
+.ide-list__icon {
+  font-size: 20px;
+}
+
+.ide-list__name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ide-connect-modal__right {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(90vh - 70px);
+}
+
+.ide-connect-modal__right h4 {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  color: #333;
+  position: sticky;
+  top: -24px;
+  background: #fff;
+  padding: 24px 0 12px 0;
+  margin: -24px 0 12px 0;
+  z-index: 1;
+}
+
+.file-path-hint {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f1f3f4;
+  border-radius: 6px;
+  border-left: 3px solid #007bff;
+}
+
+.file-path-hint code {
+  font-size: 13px;
+  color: #333;
+  background: transparent;
+  padding: 0;
+}
+
+.ide-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ide-instructions__step {
+  display: flex;
+  gap: 16px;
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  background: #007bff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-content strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #333;
+}
+
+.step-content p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.config-paths {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-path {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+}
+
+.config-path__os {
+  flex-shrink: 0;
+  min-width: 70px;
+  color: #666;
+  font-weight: 500;
+}
+
+.config-path code {
+  background: #f1f3f4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  word-break: break-all;
+  color: #333;
+}
+
+.code-block {
+  margin-top: 12px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-block__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 12px;
+  color: #666;
+}
+
+.code-block__copy {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.code-block__copy:hover {
+  background: #0056b3;
+}
+
+.code-block__content {
+  margin: 0;
+  padding: 16px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.ide-instructions__warning {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fff3cd;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #856404;
+}
+
+.ide-instructions__warning code {
+  background: #ffeeba;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.ide-instructions__footer {
+  margin-top: 24px;
+  padding: 16px;
+  background: #e8f4fd;
+  border-radius: 8px;
+}
+
+.ide-instructions__footer p {
+  margin: 0;
+  font-size: 13px;
+  color: #0c5460;
+  line-height: 1.5;
 }

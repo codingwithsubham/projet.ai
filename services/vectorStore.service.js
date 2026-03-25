@@ -3,11 +3,19 @@
  * 
  * Clean vector storage service using LangChain's PGVectorStore.
  * Provides a simple interface for embedding operations.
+ * 
+ * SCHEMA-PER-PROJECT ISOLATION:
+ * Each project gets its own PostgreSQL schema (project_{id}) with its own
+ * embeddings table. This provides database-level isolation for:
+ * - Data security (no cross-project data leaks)
+ * - Independent backup/restore
+ * - Per-project scaling
  */
 
 const { PGVectorStore } = require("@langchain/community/vectorstores/pgvector");
 const { OpenAIEmbeddings } = require("@langchain/openai");
-const { getConnectionConfig, VECTOR_DIMENSION } = require("../config/pgvector");
+const { getConnectionConfig, getProjectConnectionConfig, VECTOR_DIMENSION } = require("../config/pgvector");
+const { ensureProjectSchema, getTableName } = require("./schemaManager.service");
 
 // Configuration
 const EMBEDDING_MODEL = "azure.text-embedding-3-large";
@@ -52,6 +60,8 @@ const createEmbeddingsClient = (project) => {
 
 /**
  * Get or create a PGVectorStore instance for a project
+ * Uses schema-per-project isolation for security
+ * 
  * @param {Object} project - Project object with _id and openapikey
  * @returns {Promise<PGVectorStore>} Vector store instance
  */
@@ -62,22 +72,36 @@ const getVectorStore = async (project) => {
     throw new Error("Project with _id is required");
   }
   
-  if (vectorStoreCache.has(projectId)) {
-    return vectorStoreCache.get(projectId);
+  // Cache key includes schema for clarity
+  const cacheKey = `schema_${projectId}`;
+  
+  if (vectorStoreCache.has(cacheKey)) {
+    return vectorStoreCache.get(cacheKey);
   }
   
-  const embeddings = createEmbeddingsClient(project);
-  const config = getConnectionConfig();
+  // Ensure project schema and table exist before connecting
+  await ensureProjectSchema(projectId);
   
-  // Initialize PGVectorStore - LangChain will create the table automatically
+  const embeddings = createEmbeddingsClient(project);
+  const config = getProjectConnectionConfig(projectId);
+  
+  // Initialize PGVectorStore with project-specific table
+  // Table name is now schema-qualified: project_{id}.embeddings
   const vectorStore = await PGVectorStore.initialize(embeddings, {
     postgresConnectionOptions: config.postgresConnectionOptions,
     tableName: config.tableName,
     distanceStrategy: "cosine",
+    // Use 'content' column to match our schema
+    columns: {
+      idColumnName: "id",
+      vectorColumnName: "embedding",
+      contentColumnName: "content",
+      metadataColumnName: "metadata",
+    },
   });
   
-  vectorStoreCache.set(projectId, vectorStore);
-  console.log(`✅ Vector store initialized for project ${projectId}`);
+  vectorStoreCache.set(cacheKey, vectorStore);
+  console.log(`✅ Vector store initialized for project ${projectId} (schema-isolated)`);
   
   return vectorStore;
 };
@@ -102,11 +126,15 @@ const addDocuments = async ({ project, documents }) => {
 
 /**
  * Query similar documents using similarity search
+ * 
+ * Note: With schema-per-project isolation, we no longer need to filter by projectId
+ * since each project's data is in its own schema. This provides database-level isolation.
+ * 
  * @param {Object} options
  * @param {Object} options.project - Project object
  * @param {string} options.query - Query text
  * @param {number} [options.topK=5] - Number of results
- * @param {Object} [options.filter] - Metadata filter
+ * @param {Object} [options.filter] - Metadata filter (repoId, repoTag, etc.)
  * @returns {Promise<Array<{content: string, metadata: object, score: number}>>}
  */
 const similaritySearch = async ({ 
@@ -118,13 +146,11 @@ const similaritySearch = async ({
 }) => {
   if (!query?.trim()) throw new Error("Query is required");
   
-  const projectId = String(project?._id || "");
   const vectorStore = await getVectorStore(project);
   
-  // Always filter by projectId for isolation
-  const fullFilter = { ...filter, projectId };
-  
-  const results = await vectorStore.similaritySearchWithScore(query, topK, fullFilter);
+  // No need to add projectId filter - schema isolation handles it
+  // Only include actual filter criteria (repoId, repoTag, etc.)
+  const results = await vectorStore.similaritySearchWithScore(query, topK, filter);
   
   return results
     .filter(([, score]) => score >= minScore)
@@ -137,18 +163,19 @@ const similaritySearch = async ({
 
 /**
  * Delete documents by filter
+ * 
+ * Note: With schema-per-project isolation, we don't need projectId filter.
+ * The schema ensures data isolation at the database level.
+ * 
  * @param {Object} options
  * @param {Object} options.project - Project object
- * @param {Object} [options.filter] - Metadata filter for deletion
+ * @param {Object} [options.filter] - Metadata filter for deletion (repoId, scope, etc.)
  * @returns {Promise<void>}
  */
 const deleteDocuments = async ({ project, filter = {} }) => {
-  const projectId = String(project?._id || "");
   const vectorStore = await getVectorStore(project);
   
-  // Always include projectId in filter for safety
-  const fullFilter = { ...filter, projectId };
-  
+  // No projectId needed - schema isolation handles it
   await vectorStore.delete({ filter: fullFilter });
   console.log(`🗑️ Deleted documents for project ${project._id}`);
 };
@@ -170,8 +197,9 @@ const clearProjectDocuments = async (project) => {
  */
 const clearCache = (projectId) => {
   if (projectId) {
+    const cacheKey = `schema_${projectId}`;
     embeddingsCache.delete(projectId);
-    vectorStoreCache.delete(projectId);
+    vectorStoreCache.delete(cacheKey);
   } else {
     embeddingsCache.clear();
     vectorStoreCache.clear();
