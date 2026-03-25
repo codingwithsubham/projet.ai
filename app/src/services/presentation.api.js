@@ -75,6 +75,23 @@ export const pollPresentationStatus = (id, maxAttempts = 60, intervalMs = 1000) 
   });
 };
 
+// Download presentation as PPTX
+export const downloadPPTX = async (id, fileName) => {
+  const response = await apiClient.get(`/presentations/${id}/download`, {
+    responseType: "blob",
+  });
+  
+  // Create download link
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `${fileName}.pptx`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 export default {
   createPresentation,
   getPresentations,
@@ -82,4 +99,5 @@ export default {
   searchPresentations,
   deletePresentation,
   pollPresentationStatus,
+  downloadPPTX,
 };

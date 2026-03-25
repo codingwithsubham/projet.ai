@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const presentationService = require("../services/presentation.service");
 const projectService = require("../services/project.service");
-const { processPresentationRequest } = require("../z-agents/pptMAgent");
+const { processPresentationWithAgent } = require("../z-agents/pptAgent");
 
 const createPresentation = async (req, res) => {
   try {
@@ -62,7 +62,7 @@ const createPresentation = async (req, res) => {
     });
 
     // Start background generation
-    processPresentationRequest({
+    processPresentationWithAgent({
       presentationId: presentation._id,
       name,
       prompt,
@@ -215,10 +215,59 @@ const deletePresentation = async (req, res) => {
   }
 };
 
+const downloadPPTX = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid presentation ID",
+      });
+    }
+
+    const presentation = await presentationService.getPresentationById(
+      id,
+      req.user
+    );
+
+    if (!presentation) {
+      return res.status(404).json({
+        success: false,
+        message: "Presentation not found",
+      });
+    }
+
+    if (!presentation.slides || presentation.slides.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Presentation has no slides",
+      });
+    }
+
+    const pptxBuffer = await presentationService.generatePPTX(presentation);
+    const fileName = `${presentation.name.replace(/[^a-zA-Z0-9]/g, "_")}.pptx`;
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Length", pptxBuffer.length);
+
+    return res.send(pptxBuffer);
+  } catch (error) {
+    console.error("Download PPTX error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate PPTX",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createPresentation,
   getAllPresentations,
   getPresentationById,
   searchPresentations,
   deletePresentation,
+  downloadPPTX,
 };

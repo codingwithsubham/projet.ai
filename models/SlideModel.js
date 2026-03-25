@@ -9,7 +9,11 @@ const SlideSchema = new mongoose.Schema(
       enum: ["cover", "content", "process", "info", "timeline", "conclusion"],
       default: "content"
     },
-    content: { type: String, required: true }, // HTML with embedded CSS
+    content: { type: String, required: true }, // HTML with embedded CSS for preview
+    pptxContent: { 
+      type: mongoose.Schema.Types.Mixed, // Native PPTX JSON structure
+      default: null 
+    },
     presenter_notes: { type: String, default: "" },
   },
   {

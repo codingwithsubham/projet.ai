@@ -15,6 +15,9 @@ router.get("/search", presentationController.searchPresentations);
 // Get a specific presentation
 router.get("/:id", presentationController.getPresentationById);
 
+// Download presentation as PPTX
+router.get("/:id/download", presentationController.downloadPPTX);
+
 // Delete a presentation
 router.delete("/:id", presentationController.deletePresentation);
 

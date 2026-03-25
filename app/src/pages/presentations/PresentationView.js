@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import usePresentation from "../../hooks/usePresentation";
 import SlideViewer from "../../components/presentation/SlideViewer";
+import { downloadPPTX } from "../../services/presentation.api";
 
 const PresentationView = () => {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ const PresentationView = () => {
   } = usePresentation();
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [downloadingPPTX, setDownloadingPPTX] = useState(false);
 
   useEffect(() => {
     if (!isPM && !isAdmin) {
@@ -59,6 +61,19 @@ const PresentationView = () => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const handleDownloadPPTX = async () => {
+    if (!selectedPresentation?._id || !selectedPresentation.slides?.length) return;
+    setDownloadingPPTX(true);
+    try {
+      await downloadPPTX(selectedPresentation._id, selectedPresentation.name);
+    } catch (error) {
+      console.error("Failed to download PPTX:", error);
+      alert("Failed to download PPTX. Please try again.");
+    } finally {
+      setDownloadingPPTX(false);
+    }
   };
 
   const handleBackToLanding = () => {
@@ -145,8 +160,15 @@ const PresentationView = () => {
 
       {/* Action Buttons */}
       <div className="action-buttons-footer">
-        <button onClick={handleDownloadPresentation} className="btn btn-primary">
-          📥 Download as HTML
+        <button 
+          onClick={handleDownloadPPTX} 
+          className="btn btn-primary"
+          disabled={downloadingPPTX}
+        >
+          {downloadingPPTX ? "⏳ Generating PPTX..." : "📥 Download as PPTX"}
+        </button>
+        <button onClick={handleDownloadPresentation} className="btn btn-secondary">
+          📄 Download as HTML
         </button>
         <button onClick={handleBackToLanding} className="btn btn-secondary">
           Back to List
