@@ -32,7 +32,7 @@ const DocumentLanding = () => {
   // Auto-refresh while any document is generating
   useEffect(() => {
     const hasIncomplete = documents.some(
-      (d) => d.status !== DOCUMENT_STATUS.COMPLETED && d.status !== DOCUMENT_STATUS.ERROR
+      (d) => d.status !== DOCUMENT_STATUS.COMPLETED && d.status !== DOCUMENT_STATUS.ERROR && d.status !== DOCUMENT_STATUS.PUBLISHED
     );
 
     if (hasIncomplete) {
@@ -83,6 +83,7 @@ const DocumentLanding = () => {
     switch (status) {
       case DOCUMENT_STATUS.COMPLETED: return "badge-success";
       case DOCUMENT_STATUS.ERROR: return "badge-danger";
+      case DOCUMENT_STATUS.PUBLISHED: return "badge-primary";
       default: return "badge-warning";
     }
   };
@@ -184,7 +185,7 @@ const DocumentLanding = () => {
                     )}
                     <button
                       onClick={() => setDeleteConfirm(doc._id)}
-                      className="btn btn-sm btn-danger"
+                      className="dashboard-refresh-btn btn-danger"
                       disabled={actionLoading}
                     >
                       Delete

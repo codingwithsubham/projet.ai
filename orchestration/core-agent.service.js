@@ -1,4 +1,5 @@
 const projectService = require("../services/project.service");
+const toolRouterService = require("../services/toolRouter.service");
 const { agentParser } = require("../openai");
 const { createDynamicAgent } = require("../z-agents");
 const {
@@ -139,6 +140,29 @@ const coreOrchastrator = async ({
 
     console.log(`📋 Intent: ${classification.intent} (${classification.method}, confidence: ${classification.confidence})`);
 
+    // === RAG-FIRST TOOL ROUTING ===
+    // Determine if we should use external tools or rely on RAG
+    let routingResult = null;
+    let agentOptions = {};
+    let routingDirective = "";
+
+    if (agentType === "dev") {
+      routingResult = await toolRouterService.routeQuery({
+        project,
+        query: cleanMessage,
+        agentType,
+      });
+
+      // Configure agent based on routing decision
+      agentOptions = {
+        includeExternalTools: routingResult.useExternalTools,
+        readOnlyMode: false, // Can enable for read-only queries
+      };
+
+      // Get directive to include in system prompt
+      routingDirective = toolRouterService.getRoutingDirective(routingResult);
+    }
+
     // Build system prompt with classified intent
     const { systemPrompt, promptMeta } = buildSystemPrompt({
       agentType,
@@ -146,6 +170,11 @@ const coreOrchastrator = async ({
       project,
       forceIntent: classification.intent,
     });
+
+    // Enhance system prompt with routing directive
+    const enhancedSystemPrompt = routingDirective 
+      ? `${systemPrompt}\n\n${routingDirective}`
+      : systemPrompt;
 
     // Build RAG context with same intent for consistency
     const ragContext = await buildRagContext(project, cleanMessage, {
@@ -158,11 +187,11 @@ const coreOrchastrator = async ({
       executionDirective,
     ].join("\n");
 
-    const agent = await createDynamicAgent(project, agentType);
+    const agent = await createDynamicAgent(project, agentType, agentOptions);
     const result = await agent.invoke(
       {
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: enhancedSystemPrompt },
           { role: "user", content: userPrompt },
         ],
       },

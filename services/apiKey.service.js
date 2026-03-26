@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const ApiKey = require("../models/ApiKeyModel");
 const Project = require("../models/ProjectModel");
+const User = require("../models/UserModel");
 const { USER_ROLES } = require("../common/user-roles");
 
 const normalizeString = (value) => String(value || "").trim();
@@ -61,6 +62,25 @@ const parseProjectId = async (value) => {
   return projectId;
 };
 
+const parseAssignedTo = async (value) => {
+  // Handle null, undefined, empty string, or string "null"/"undefined"
+  if (!value || value === "null" || value === "undefined") return null;
+  
+  const userId = normalizeString(value);
+  if (!userId) return null;
+  
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new Error("assignedTo is invalid");
+  }
+
+  const user = await User.findById(userId, "_id name email").lean();
+  if (!user) {
+    throw new Error("assignedTo user does not exist");
+  }
+
+  return userId;
+};
+
 const serializeApiKey = (apiKey) => {
   const data = typeof apiKey.toObject === "function" ? apiKey.toObject() : apiKey;
 
@@ -72,10 +92,23 @@ const serializeApiKey = (apiKey) => {
 
   const projectName = data.projectId?.name || "";
 
+  // Handle assignedTo user info
+  const assignedToId = data.assignedTo?._id
+    ? String(data.assignedTo._id)
+    : data.assignedTo
+      ? String(data.assignedTo)
+      : null;
+
+  const assignedToName = data.assignedTo?.name || null;
+  const assignedToEmail = data.assignedTo?.email || null;
+
   return {
     ...data,
     projectId,
     projectName,
+    assignedTo: assignedToId,
+    assignedToName,
+    assignedToEmail,
     status: resolveStatus(data),
   };
 };
@@ -83,6 +116,7 @@ const serializeApiKey = (apiKey) => {
 const listApiKeys = async () => {
   const keys = await ApiKey.find()
     .populate("projectId", "name")
+    .populate("assignedTo", "name email")
     .sort({ createdAt: -1 });
 
   return keys.map((item) => serializeApiKey(item));
@@ -93,6 +127,8 @@ const createApiKey = async (payload = {}, actorUser = null) => {
   const role = parseRole(payload.role);
   const projectId = await parseProjectId(payload.projectId);
   const expiresAt = parseExpiry(payload.expiresAt);
+  const assignedTo = await parseAssignedTo(payload.assignedTo);
+  const description = normalizeString(payload.description) || null;
 
   if (!name) {
     throw new Error("name is required");
@@ -108,9 +144,13 @@ const createApiKey = async (payload = {}, actorUser = null) => {
     keyHash: hashApiKey(plainTextKey),
     keyPreview: createKeyPreview(plainTextKey),
     createdBy: actorUser?.id || actorUser?._id || null,
+    assignedTo,
+    description,
   });
 
-  const populated = await ApiKey.findById(created._id).populate("projectId", "name");
+  const populated = await ApiKey.findById(created._id)
+    .populate("projectId", "name")
+    .populate("assignedTo", "name email");
 
   return {
     apiKey: serializeApiKey(populated),
@@ -139,6 +179,14 @@ const updateApiKeyById = async (id, payload = {}) => {
     updateData.expiresAt = parseExpiry(payload.expiresAt);
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, "assignedTo")) {
+    updateData.assignedTo = await parseAssignedTo(payload.assignedTo);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "description")) {
+    updateData.description = normalizeString(payload.description) || null;
+  }
+
   if (!Object.keys(updateData).length) {
     throw new Error("No valid fields provided for update");
   }
@@ -146,7 +194,9 @@ const updateApiKeyById = async (id, payload = {}) => {
   const updated = await ApiKey.findByIdAndUpdate(id, updateData, {
     new: true,
     runValidators: true,
-  }).populate("projectId", "name");
+  })
+    .populate("projectId", "name")
+    .populate("assignedTo", "name email");
 
   return updated ? serializeApiKey(updated) : null;
 };
@@ -175,6 +225,7 @@ const getActiveApiKeysForCache = async () => {
       projectId: 1,
       expiresAt: 1,
       keyHash: 1,
+      assignedTo: 1,
     }
   ).lean();
 
@@ -185,6 +236,7 @@ const getActiveApiKeysForCache = async () => {
     role: row.role,
     projectId: String(row.projectId),
     expiresAt: row.expiresAt,
+    assignedTo: row.assignedTo ? String(row.assignedTo) : null,
   }));
 };
 

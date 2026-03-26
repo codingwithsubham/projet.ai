@@ -18,4 +18,7 @@ router.get("/:id/repositories/:repoId", projectController.getRepository);
 router.put("/:id/repositories/:repoId", projectController.updateRepository);
 router.delete("/:id/repositories/:repoId", projectController.deleteRepository);
 
+// Copilot configuration
+router.get("/:id/copilot-config", projectController.getCopilotConfig);
+
 module.exports = router;

@@ -11,6 +11,9 @@ const ApiKeySchema = new mongoose.Schema(
     expiresAt: { type: Date, required: true, index: true },
     revokedAt: { type: Date, default: null, index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // Developer assigned to this API key (for activity tracking)
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    description: { type: String, trim: true, maxlength: 500, default: null },
   },
   {
     timestamps: true,

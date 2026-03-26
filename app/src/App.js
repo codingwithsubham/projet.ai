@@ -2,6 +2,7 @@ import "./App.css";
 import "./styles/mob.css"
 import "./styles/presentations.css";
 import "./styles/documents.css";
+import "./styles/activity.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/landing/Landing";
 import Dashboard from "./pages/dashboard/Dashboard";
@@ -17,6 +18,7 @@ import PresentationView from "./pages/presentations/PresentationView";
 import DocumentLanding from "./pages/documents/DocumentLanding";
 import DocumentCreation from "./pages/documents/DocumentCreation";
 import DocumentView from "./pages/documents/DocumentView";
+import ActivityDashboard from "./pages/activity/ActivityDashboard";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
 import AppLayout from "./routes/AppLayout";
@@ -124,6 +126,14 @@ function App() {
             <AdminRoute>
               <ApiKeys />
             </AdminRoute>
+          }
+        />
+        <Route
+          path="/activity"
+          element={
+            <PMRoute>
+              <ActivityDashboard />
+            </PMRoute>
           }
         />
       </Route>

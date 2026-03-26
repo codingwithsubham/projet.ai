@@ -6,12 +6,15 @@ import {
   revokeApiKeyApi,
   updateApiKeyApi,
 } from "../services/apiKeys.api";
+import { getUsersApi } from "../services/users.api";
 
 const initialForm = {
   name: "",
   projectId: "",
   role: "dev",
   expiresAt: "",
+  assignedTo: "",
+  description: "",
 };
 
 const formatDateTimeInput = (value) => {
@@ -31,12 +34,15 @@ const mapKeyToForm = (item) => ({
   projectId: item?.projectId || "",
   role: item?.role || "dev",
   expiresAt: formatDateTimeInput(item?.expiresAt),
+  assignedTo: item?.assignedTo || "",
+  description: item?.description || "",
 });
 
 export const useApiKeys = () => {
   const { projects, fetchProjects } = useAppData();
 
   const [apiKeys, setApiKeys] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -68,10 +74,20 @@ export const useApiKeys = () => {
     }
   }, [getErrorMessage]);
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await getUsersApi();
+      setUsers(Array.isArray(response?.data) ? response.data : []);
+    } catch (nextError) {
+      console.error("Failed to fetch users:", nextError);
+    }
+  }, []);
+
   useEffect(() => {
     fetchApiKeys();
+    fetchUsers();
     if (!projects.length) fetchProjects();
-  }, [fetchApiKeys, fetchProjects, projects.length]);
+  }, [fetchApiKeys, fetchUsers, fetchProjects, projects.length]);
 
   const projectNameById = useMemo(() => {
     return projects.reduce((acc, project) => {
@@ -131,6 +147,8 @@ export const useApiKeys = () => {
       projectId: formData.projectId,
       role: formData.role,
       expiresAt: new Date(formData.expiresAt).toISOString(),
+      assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo.trim() : null,
+      description: formData.description?.trim() || null,
     };
 
     try {
@@ -178,6 +196,7 @@ export const useApiKeys = () => {
   return {
     apiKeys,
     projects,
+    users,
     projectNameById,
     loading,
     error,

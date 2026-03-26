@@ -39,6 +39,11 @@ const Sidebar = () => {
               📝 Documents
             </NavLink>
           ) : null}
+          {isPM || isAdmin ? (
+            <NavLink to="/activity" className="app-sidebar__link">
+              📈 Activity
+            </NavLink>
+          ) : null}
           {isAdmin ? (
             <NavLink to="/users" className="app-sidebar__link">
               👥 Users

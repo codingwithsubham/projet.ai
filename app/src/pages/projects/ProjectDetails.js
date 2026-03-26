@@ -72,6 +72,7 @@ const ProjectDetails = () => {
         isOpen={showIDEModal}
         onClose={() => setShowIDEModal(false)}
         projectName={project?.name}
+        projectId={id}
         apiKey={null}
       />
     </section>

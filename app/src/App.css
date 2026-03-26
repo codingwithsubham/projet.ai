@@ -2287,6 +2287,8 @@ span.app-navbar__icon.role {
   border: 1px solid #e9ecef;
   border-radius: 8px;
   overflow: hidden;
+  max-width: 612px;
+  margin-bottom: 10px;
 }
 
 .code-block__header {

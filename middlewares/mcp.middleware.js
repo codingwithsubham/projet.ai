@@ -22,12 +22,14 @@ const authenticateMcpRequest = (req, res, next) => {
       });
     }
 
-    // Attach resolved project and role to the request
+    // Attach resolved project, role, and user (from assignedTo) to the request
     req.mcpAuth = {
       projectId: keyEntry.projectId,
       role: keyEntry.role,
       apiKeyId: keyEntry.id,
       apiKeyName: keyEntry.name,
+      // User associated with this API key (for activity tracking)
+      userId: keyEntry.assignedTo || null,
     };
 
     return next();

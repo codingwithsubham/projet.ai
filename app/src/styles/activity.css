@@ -1,0 +1,533 @@
+/* Activity Dashboard Styles */
+
+.activity-page {
+  padding: 24px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.activity-header {
+  margin-bottom: 24px;
+}
+
+.activity-header h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.activity-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Activity Filters */
+.activity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.activity-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-filter-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.activity-filter-group select,
+.activity-filter-group input {
+  border: 1px solid #d3d3d3;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: #fff;
+  min-width: 160px;
+}
+
+.activity-filter-group select:focus,
+.activity-filter-group input:focus {
+  outline: none;
+  border-color: #111;
+}
+
+/* Activity Table */
+.activity-table-wrap {
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: #fff;
+  overflow: auto;
+}
+
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.activity-table th,
+.activity-table td {
+  padding: 12px;
+  border-bottom: 1px solid #ececec;
+  text-align: left;
+  font-size: 13px;
+  color: #222;
+}
+
+.activity-table thead th {
+  background: #f7f7f7;
+  font-size: 11px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+
+.activity-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.activity-prompt-cell {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-prompt-cell:hover {
+  cursor: help;
+}
+
+.activity-source-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.activity-source-badge--mcp {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.activity-source-badge--web {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.activity-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.activity-status-badge--success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.activity-status-badge--error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.activity-status-badge--pending {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.activity-empty {
+  text-align: center;
+  padding: 40px !important;
+  color: #666;
+}
+
+.activity-loading {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+/* Pagination */
+.activity-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.activity-pagination-info {
+  font-size: 13px;
+  color: #555;
+}
+
+.activity-pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.activity-pagination-controls button {
+  border: 1px solid #d8d8d8;
+  background: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.activity-pagination-controls button:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.activity-pagination-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Handoff Panel Modal */
+.handoff-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 12, 14, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+}
+
+.handoff-panel {
+  width: min(800px, 94vw);
+  max-height: 85vh;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.handoff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #f9f9f9;
+}
+
+.handoff-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.handoff-close {
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.handoff-close:hover {
+  background: #f5f5f5;
+}
+
+.handoff-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.handoff-loading,
+.handoff-error,
+.handoff-empty {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.handoff-error {
+  color: #c62828;
+}
+
+.handoff-section {
+  margin-bottom: 24px;
+}
+
+.handoff-section:last-child {
+  margin-bottom: 0;
+}
+
+.handoff-section h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.handoff-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.handoff-summary-stat {
+  background: #f5f5f5;
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+
+.handoff-summary-stat label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.handoff-summary-stat span {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+}
+
+.handoff-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.handoff-topic-tag {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.handoff-activities {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.handoff-activity-item {
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.handoff-activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.handoff-activity-agent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.handoff-activity-time {
+  font-size: 12px;
+  color: #888;
+}
+
+.handoff-activity-prompt {
+  font-size: 13px;
+  color: #222;
+  line-height: 1.5;
+}
+
+.handoff-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid #e5e5e5;
+  background: #f9f9f9;
+}
+
+.handoff-btn--copy {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.handoff-btn--copy:hover {
+  background: #333;
+}
+
+/* Copilot Config Styles */
+.copilot-config {
+  padding: 20px;
+}
+
+.copilot-config-header {
+  margin-bottom: 24px;
+}
+
+.copilot-config-header h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.copilot-config-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.copilot-config-empty {
+  color: #666;
+  text-align: center;
+  padding: 40px;
+}
+
+.copilot-config-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.copilot-config-section h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.copilot-config-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.copilot-config-section-header h4 {
+  margin: 0;
+}
+
+.copilot-config-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.copilot-config-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #555;
+}
+
+.copilot-config-desc code {
+  background: #e8e8e8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.copilot-config-steps {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.copilot-config-steps li {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.copilot-config-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  background: #fff3cd;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #856404;
+}
+
+.copilot-config-code {
+  margin: 0;
+  padding: 12px 16px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.copilot-config-code--large {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.copilot-config-tools {
+  display: grid;
+  gap: 12px;
+}
+
+.copilot-config-tool {
+  background: #fff;
+  padding: 12px 16px;
+  border-radius: 6px;
+  border: 1px solid #e5e5e5;
+}
+
+.copilot-config-tool strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  color: #1565c0;
+}
+
+.copilot-config-tool p {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+}

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const projectService = require("../services/project.service");
+const copilotConfigGenerator = require("../helpers/copilotConfigGenerator");
 
 const createProject = async (req, res) => {
   try {
@@ -301,6 +302,61 @@ const getRepository = async (req, res) => {
   }
 };
 
+/**
+ * Generate Copilot configuration for a project
+ * Returns copilot-instructions.md content and MCP config
+ */
+const getCopilotConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { format } = req.query; // 'full', 'instructions', 'mcp'
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+
+    const project = await projectService.getProjectById(id, req.user);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    const options = {
+      apiKeyPreview: "YOUR_API_KEY",
+      conventions: project.conventions || "",
+    };
+
+    let data;
+    switch (format) {
+      case "instructions":
+        data = {
+          content: copilotConfigGenerator.generateCopilotInstructions(project, options),
+          filename: "copilot-instructions.md",
+          path: ".github/copilot-instructions.md",
+        };
+        break;
+      case "mcp":
+        data = {
+          mcpConfig: copilotConfigGenerator.generateMcpConfig(project, options.apiKeyPreview),
+          vsCodeSettings: copilotConfigGenerator.generateVsCodeSettings(project, options.apiKeyPreview),
+        };
+        break;
+      default:
+        data = copilotConfigGenerator.generateConfigPackage(project, options);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate Copilot config",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getAllProjects,
@@ -315,4 +371,6 @@ module.exports = {
   updateRepository,
   deleteRepository,
   getRepository,
+  // Copilot configuration
+  getCopilotConfig,
 };

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getCopilotConfigApi } from "../services/activity.api";
 
 const IDE_OPTIONS = [
   { id: "vscode", name: "VS Code", icon: "💻" },
@@ -59,9 +60,21 @@ const getIDEInstructions = (ideId) => {
   }
 };
 
-const IDEConnectModal = ({ isOpen, onClose, projectName, apiKey }) => {
+const IDEConnectModal = ({ isOpen, onClose, projectName, projectId, apiKey }) => {
   const [selectedIDE, setSelectedIDE] = useState("vscode");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [copilotConfig, setCopilotConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && projectId && selectedIDE === "vscode") {
+      setLoadingConfig(true);
+      getCopilotConfigApi(projectId, "full")
+        .then((res) => setCopilotConfig(res?.data || null))
+        .catch((err) => console.error("Failed to load copilot config:", err))
+        .finally(() => setLoadingConfig(false));
+    }
+  }, [isOpen, projectId, selectedIDE]);
 
   if (!isOpen) return null;
 
@@ -80,15 +93,29 @@ const IDEConnectModal = ({ isOpen, onClose, projectName, apiKey }) => {
   }
 }`;
 
-  const handleCopy = async () => {
+  const handleCopy = async (text, label) => {
     try {
-      await navigator.clipboard.writeText(mcpConfig);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(""), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
     }
   };
+
+  const handleDownload = (content, filename) => {
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const instructionsContent = copilotConfig?.files?.["copilot-instructions.md"]?.content || "";
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -154,8 +181,8 @@ const IDEConnectModal = ({ isOpen, onClose, projectName, apiKey }) => {
                   <div className="code-block">
                     <div className="code-block__header">
                       <span>{ideInstructions.configFile}</span>
-                      <button className="code-block__copy" onClick={handleCopy}>
-                        {copied ? "✓ Copied!" : "📋 Copy"}
+                      <button className="code-block__copy" onClick={() => handleCopy(mcpConfig, "mcp")}>
+                        {copied === "mcp" ? "✓ Copied!" : "📋 Copy"}
                       </button>
                     </div>
                     <pre className="code-block__content">{mcpConfig}</pre>
@@ -168,8 +195,38 @@ const IDEConnectModal = ({ isOpen, onClose, projectName, apiKey }) => {
                 </div>
               </div>
 
+              {selectedIDE === "vscode" && (
+                <div className="ide-instructions__step">
+                  <span className="step-number">4</span>
+                  <div className="step-content">
+                    <strong>Add Copilot Instructions (Optional)</strong>
+                    <p>Download and add this file to <code>.github/copilot-instructions.md</code> in your project to customize Copilot behavior:</p>
+                    {loadingConfig ? (
+                      <p className="kb-muted">Loading config...</p>
+                    ) : instructionsContent ? (
+                      <div className="code-block">
+                        <div className="code-block__header">
+                          <span>copilot-instructions.md</span>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button className="code-block__copy" onClick={() => handleCopy(instructionsContent, "instructions")}>
+                              {copied === "instructions" ? "✓ Copied!" : "📋 Copy"}
+                            </button>
+                            <button className="code-block__copy" onClick={() => handleDownload(instructionsContent, "copilot-instructions.md")}>
+                              ⬇️ Download
+                            </button>
+                          </div>
+                        </div>
+                        <pre className="code-block__content" style={{ maxHeight: 200, overflow: "auto" }}>{instructionsContent}</pre>
+                      </div>
+                    ) : (
+                      <p className="kb-muted">Could not load instructions file.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="ide-instructions__step">
-                <span className="step-number">4</span>
+                <span className="step-number">{selectedIDE === "vscode" ? "5" : "4"}</span>
                 <div className="step-content">
                   <strong>Restart your IDE</strong>
                   <p>

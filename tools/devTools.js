@@ -37,6 +37,21 @@ const DEV_ALLOWED_TOOL_KEYWORDS = [
   "list_commits",
 ];
 
+// Read-only tools (no confirmation needed)
+const READ_ONLY_TOOLS = new Set([
+  "issue_read",
+  "list_issues",
+  "search_issues",
+  "search_pull_requests",
+  "list_pull_requests",
+  "pull_request_read",
+  "get_me",
+  "list_branches",
+  "get_file_contents",
+  "get_commit",
+  "list_commits",
+]);
+
 const normalizeToolName = (name) =>
   String(name || "")
     .trim()
@@ -53,7 +68,30 @@ const isAllowedDevTool = (tool) => {
   );
 };
 
-const buildDevTools = async (project) => {
+const isReadOnlyTool = (tool) => {
+  const normalizedName = normalizeToolName(tool?.name);
+  return READ_ONLY_TOOLS.has(normalizedName);
+};
+
+/**
+ * Build dev tools with optional filtering
+ * 
+ * @param {Object} project - Project object
+ * @param {Object} [options] - Options
+ * @param {boolean} [options.includeExternalTools=true] - Include GitHub/external tools
+ * @param {boolean} [options.readOnlyMode=false] - Only include read-only tools
+ * @returns {Promise<Array>} Array of tools
+ */
+const buildDevTools = async (project, options = {}) => {
+  const { includeExternalTools = true, readOnlyMode = false } = options;
+
+  // If external tools are disabled, return empty array
+  // The agent will rely on RAG context only
+  if (!includeExternalTools) {
+    console.log("🔧 Dev tools: External tools disabled (RAG-first mode)");
+    return [];
+  }
+
   const mcpClient = new MultiServerMCPClient({
     github: {
       command: "npx",
@@ -67,9 +105,17 @@ const buildDevTools = async (project) => {
 
   // Initialize tools (e.g., GitHub) and shared feedback tool for Dev agent
   const githubTool = await mcpClient.getTools();
-  const filteredDevTools = githubTool.filter(isAllowedDevTool);
+  let filteredDevTools = githubTool.filter(isAllowedDevTool);
+
+  // In read-only mode, only include read operations
+  if (readOnlyMode) {
+    filteredDevTools = filteredDevTools.filter(isReadOnlyTool);
+    console.log(`🔧 Dev tools: ${filteredDevTools.length} read-only tools loaded`);
+  } else {
+    console.log(`🔧 Dev tools: ${filteredDevTools.length} tools loaded`);
+  }
 
   return [...filteredDevTools];
 };
 
-module.exports = { buildDevTools };
+module.exports = { buildDevTools, isReadOnlyTool };

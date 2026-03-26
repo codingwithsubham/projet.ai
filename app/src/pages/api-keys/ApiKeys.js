@@ -17,6 +17,7 @@ const ApiKeys = () => {
   const {
     apiKeys,
     projects,
+    users,
     projectNameById,
     loading,
     error,
@@ -87,6 +88,7 @@ const ApiKeys = () => {
               <th>Name</th>
               <th>Key Preview</th>
               <th>Project</th>
+              <th>Assigned To</th>
               <th>Role</th>
               <th>Expiry</th>
               <th>Status</th>
@@ -96,11 +98,11 @@ const ApiKeys = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="projects-empty">Loading API keys...</td>
+                <td colSpan={8} className="projects-empty">Loading API keys...</td>
               </tr>
             ) : apiKeys.length === 0 ? (
               <tr>
-                <td colSpan={7} className="projects-empty">No API keys found.</td>
+                <td colSpan={8} className="projects-empty">No API keys found.</td>
               </tr>
             ) : (
               apiKeys.map((item) => {
@@ -111,6 +113,7 @@ const ApiKeys = () => {
                     <td>{item.name}</td>
                     <td><code>{item.keyPreview}</code></td>
                     <td>{item.projectName || projectNameById[item.projectId] || "-"}</td>
+                    <td>{item.assignedToName || "-"}</td>
                     <td>{item.role}</td>
                     <td>{prettyDateTime(item.expiresAt)}</td>
                     <td>
@@ -185,6 +188,25 @@ const ApiKeys = () => {
                   name="expiresAt"
                   type="datetime-local"
                   value={formData.expiresAt}
+                  onChange={handleFormChange}
+                />
+
+                <label htmlFor="assignedTo">Assign to Developer (for activity tracking)</label>
+                <select id="assignedTo" name="assignedTo" value={formData.assignedTo} onChange={handleFormChange}>
+                  <option value="">Not assigned</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor="description">Description (optional)</label>
+                <input
+                  id="description"
+                  name="description"
+                  placeholder="e.g., VS Code Copilot for John"
+                  value={formData.description}
                   onChange={handleFormChange}
                 />
 

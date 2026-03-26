@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.use(authenticateMcpRequest);
 router.get("/sse", mcpController.sseConnect);
-router.post("/messages", mcpController.handleMessage);
+router.post("/sse", mcpController.handleSseMessage);  // New MCP protocol posts to same endpoint
+router.post("/messages", mcpController.handleMessage); // Legacy endpoint
 
 module.exports = router;
