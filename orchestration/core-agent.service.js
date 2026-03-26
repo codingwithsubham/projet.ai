@@ -20,6 +20,10 @@ const {
   DEFAULT_GRAPH_RECURSION_LIMIT,
   ASYNC_IMPLEMENTATION_ACK,
 } = require("../common/constants");
+const {
+  getCachedResponse,
+  cacheResponse,
+} = require("../services/responseCache.service");
 
 const shouldRunAsyncImplementation = ({ agentType, message }) => {
   const normalizedAgentType = String(agentType || "").toLowerCase();
@@ -109,6 +113,8 @@ const coreOrchastrator = async ({
   isAdmin = false,
   requester = null,
 }) => {
+  const startTime = Date.now();
+  
   try {
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw new Error("message is required");
@@ -139,6 +145,42 @@ const coreOrchastrator = async ({
     });
 
     console.log(`📋 Intent: ${classification.intent} (${classification.method}, confidence: ${classification.confidence})`);
+    
+    // === CACHE CHECK ===
+    // Check L1 (in-memory) and L2 (PostgreSQL semantic) caches
+    const cachedResult = await getCachedResponse({
+      project,
+      query: cleanMessage,
+      agentType,
+      intent: classification.intent,
+    });
+    
+    if (cachedResult) {
+      const cacheDuration = Date.now() - startTime;
+      console.log(`⚡ Cache HIT (${cachedResult.source}): ${cacheDuration}ms`);
+      
+      // Update session with cached response
+      session.chats.push({ role: "user", content: cleanMessage });
+      session.chats.push({ role: "assistant", content: cachedResult.response });
+      
+      if (!session.title || session.title === "New Chat") {
+        session.title = buildSessionTitle(cleanMessage);
+      }
+      
+      await session.save();
+      
+      return {
+        projectId,
+        sessionId: String(session._id),
+        response: cachedResult.response,
+        chats: session.chats,
+        cached: true,
+        cacheSource: cachedResult.source,
+        cacheDuration,
+      };
+    }
+    
+    console.log(`🔄 Cache MISS - invoking agent...`);
 
     // === RAG-FIRST TOOL ROUTING ===
     // Determine if we should use external tools or rely on RAG
@@ -214,12 +256,29 @@ const coreOrchastrator = async ({
     }
 
     await session.save();
+    
+    // === CACHE STORE ===
+    // Store response in cache for future similar queries (async, non-blocking)
+    cacheResponse({
+      project,
+      query: cleanMessage,
+      agentType,
+      intent: classification.intent,
+      response: assistantText,
+    }).catch((err) => {
+      console.warn("Cache store failed (non-blocking):", err.message);
+    });
+    
+    const totalDuration = Date.now() - startTime;
+    console.log(`✅ Agent response completed in ${totalDuration}ms`);
 
     return {
       projectId,
       sessionId: String(session._id),
       response: assistantText,
       chats: session.chats,
+      cached: false,
+      duration: totalDuration,
     };
   } catch (error) {
     console.log("Error in coreOrchastrator:", error);

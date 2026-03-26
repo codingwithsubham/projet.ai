@@ -9,10 +9,15 @@
  * The vectorStore.service automatically ensures the schema exists before indexing.
  * ProjectId is kept in metadata for debugging/analytics purposes, but schema isolation
  * provides the actual security boundary.
+ * 
+ * CACHE INVALIDATION:
+ * When documents are indexed, the response cache KB version is incremented.
+ * This automatically invalidates cached responses that may be stale.
  */
 
 const crypto = require("crypto");
 const { getVectorStore, deleteDocuments } = require("./vectorStore.service");
+const { incrementKbVersion } = require("./responseCache.service");
 
 /**
  * Generate a hash for document content (for deduplication)
@@ -78,6 +83,17 @@ const indexDocuments = async ({
   // Add documents to vector store
   const ids = await vectorStore.addDocuments(docsToIndex);
   const numAdded = ids?.length || docsToIndex.length;
+  
+  // Invalidate response cache when knowledge base is updated
+  if (numAdded > 0) {
+    try {
+      const newKbVersion = await incrementKbVersion(projectId);
+      console.log(`🗑️ Cache invalidated - KB version: ${newKbVersion}`);
+    } catch (cacheErr) {
+      // Non-blocking - cache invalidation failure shouldn't fail indexing
+      console.warn("Cache invalidation warning:", cacheErr.message);
+    }
+  }
   
   console.log(`✅ Indexed ${numAdded} documents`);
   

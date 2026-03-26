@@ -12,47 +12,26 @@
  * 
  * Schema Structure:
  *   project_{projectId}/
- *     └── embeddings (vector table with same structure as original)
- */
-
-const { getPool, VECTOR_DIMENSION } = require("../config/pgvector");
-
-// Schema naming convention
-const SCHEMA_PREFIX = "project_";
-const EMBEDDINGS_TABLE = "embeddings";
-
-/**
- * Sanitize project ID for use in schema name
- * MongoDB ObjectIds are 24 hex characters - safe for PostgreSQL identifiers
+ *     ├── embeddings (vector table for RAG)
+ *     └── response_cache (semantic cache for agent responses)
  * 
- * @param {string} projectId - Project ID (MongoDB ObjectId)
- * @returns {string} Sanitized schema name
+ * NOTE: All SQL queries are centralized in common/sql-queries.js
  */
-const getSchemaName = (projectId) => {
-  if (!projectId) {
-    throw new Error("Project ID is required for schema name");
-  }
-  
-  // MongoDB ObjectId: 24 hex characters (a-f, 0-9)
-  const sanitized = String(projectId).toLowerCase().replace(/[^a-f0-9]/g, "");
-  
-  if (sanitized.length !== 24) {
-    throw new Error(`Invalid project ID format: ${projectId}`);
-  }
-  
-  return `${SCHEMA_PREFIX}${sanitized}`;
-};
 
-/**
- * Get fully qualified table name for a project
- * 
- * @param {string} projectId - Project ID
- * @returns {string} Fully qualified table name (schema.table)
- */
-const getTableName = (projectId) => {
-  const schema = getSchemaName(projectId);
-  return `${schema}.${EMBEDDINGS_TABLE}`;
-};
+const { getPool } = require("../config/pgvector");
+const {
+  SCHEMA_PREFIX,
+  EMBEDDINGS_TABLE,
+  getSchemaName,
+  getEmbeddingsTableName,
+  SCHEMA_QUERIES,
+  buildSchemaDDL,
+  buildCacheDDL,
+  MIGRATION_QUERIES,
+} = require("../common/sql-queries");
+
+// Re-export for backward compatibility
+const getTableName = getEmbeddingsTableName;
 
 /**
  * Check if a project schema exists
@@ -64,14 +43,7 @@ const schemaExists = async (projectId) => {
   const pool = getPool();
   const schemaName = getSchemaName(projectId);
   
-  const result = await pool.query(
-    `SELECT EXISTS (
-      SELECT 1 FROM information_schema.schemata 
-      WHERE schema_name = $1
-    ) as exists`,
-    [schemaName]
-  );
-  
+  const result = await pool.query(SCHEMA_QUERIES.CHECK_SCHEMA_EXISTS, [schemaName]);
   return result.rows[0]?.exists || false;
 };
 
@@ -85,14 +57,21 @@ const tableExists = async (projectId) => {
   const pool = getPool();
   const schemaName = getSchemaName(projectId);
   
-  const result = await pool.query(
-    `SELECT EXISTS (
-      SELECT 1 FROM information_schema.tables 
-      WHERE table_schema = $1 AND table_name = $2
-    ) as exists`,
-    [schemaName, EMBEDDINGS_TABLE]
-  );
+  const result = await pool.query(SCHEMA_QUERIES.CHECK_TABLE_EXISTS, [schemaName, EMBEDDINGS_TABLE]);
+  return result.rows[0]?.exists || false;
+};
+
+/**
+ * Check if cache table exists in a project schema
+ * 
+ * @param {string} projectId - Project ID
+ * @returns {Promise<boolean>} True if table exists
+ */
+const cacheTableExists = async (projectId) => {
+  const pool = getPool();
+  const schemaName = getSchemaName(projectId);
   
+  const result = await pool.query(SCHEMA_QUERIES.CHECK_TABLE_EXISTS, [schemaName, "response_cache"]);
   return result.rows[0]?.exists || false;
 };
 
@@ -101,12 +80,12 @@ const tableExists = async (projectId) => {
  * Idempotent - safe to call multiple times
  * 
  * @param {string} projectId - Project ID
- * @returns {Promise<{schemaCreated: boolean, tableCreated: boolean}>}
+ * @returns {Promise<{schemaCreated: boolean, tableCreated: boolean, cacheTableCreated: boolean}>}
  */
 const ensureProjectSchema = async (projectId) => {
   const pool = getPool();
   const schemaName = getSchemaName(projectId);
-  const tableName = getTableName(projectId);
+  const ddl = buildSchemaDDL(schemaName);
   
   let schemaCreated = false;
   let tableCreated = false;
@@ -116,13 +95,13 @@ const ensureProjectSchema = async (projectId) => {
   try {
     await client.query("BEGIN");
     
-    // 1. Ensure pgvector extension exists (in public schema)
-    await client.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+    // 1. Ensure pgvector extension exists
+    await client.query(ddl.CREATE_EXTENSION);
     
     // 2. Create schema if not exists
     const schemaExistsBefore = await schemaExists(projectId);
     if (!schemaExistsBefore) {
-      await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+      await client.query(ddl.CREATE_SCHEMA);
       schemaCreated = true;
       console.log(`✅ Created schema: ${schemaName}`);
     }
@@ -130,46 +109,21 @@ const ensureProjectSchema = async (projectId) => {
     // 3. Create embeddings table if not exists
     const tableExistsBefore = await tableExists(projectId);
     if (!tableExistsBefore) {
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS "${schemaName}"."${EMBEDDINGS_TABLE}" (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          content TEXT NOT NULL,
-          metadata JSONB DEFAULT '{}',
-          embedding vector(${VECTOR_DIMENSION}),
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )
-      `);
-      
-      // 4. Create indexes for performance
-      // Vector similarity index (IVFFlat for large datasets, HNSW for smaller)
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS "${schemaName}_embeddings_vector_idx"
-        ON "${schemaName}"."${EMBEDDINGS_TABLE}" 
-        USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
-      `);
-      
-      // Full-text search index
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS "${schemaName}_embeddings_fts_idx"
-        ON "${schemaName}"."${EMBEDDINGS_TABLE}" 
-        USING GIN(to_tsvector('english', content))
-      `);
-      
-      // Metadata indexes for common queries
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS "${schemaName}_embeddings_metadata_idx"
-        ON "${schemaName}"."${EMBEDDINGS_TABLE}" 
-        USING GIN(metadata jsonb_path_ops)
-      `);
+      await client.query(ddl.CREATE_EMBEDDINGS_TABLE);
+      await client.query(ddl.CREATE_VECTOR_INDEX);
+      await client.query(ddl.CREATE_FTS_INDEX);
+      await client.query(ddl.CREATE_METADATA_INDEX);
       
       tableCreated = true;
-      console.log(`✅ Created table: ${tableName} with indexes`);
+      console.log(`✅ Created embeddings table in ${schemaName} with indexes`);
     }
+    
+    // 4. Create response_cache table if not exists
+    const cacheTableCreated = await ensureCacheTableInternal(client, schemaName);
     
     await client.query("COMMIT");
     
-    return { schemaCreated, tableCreated };
+    return { schemaCreated, tableCreated, cacheTableCreated };
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(`❌ Failed to ensure schema for project ${projectId}:`, err.message);
@@ -180,8 +134,61 @@ const ensureProjectSchema = async (projectId) => {
 };
 
 /**
+ * Internal helper to create cache table within a transaction
+ * @param {Object} client - PostgreSQL client
+ * @param {string} schemaName - Schema name
+ * @returns {Promise<boolean>} True if table was created
+ */
+const ensureCacheTableInternal = async (client, schemaName) => {
+  // Check if cache table exists
+  const tableCheck = await client.query(
+    SCHEMA_QUERIES.CHECK_TABLE_EXISTS,
+    [schemaName, "response_cache"]
+  );
+  
+  if (tableCheck.rows[0]?.exists) {
+    return false; // Already exists
+  }
+  
+  const ddl = buildCacheDDL(schemaName);
+  
+  await client.query(ddl.CREATE_CACHE_TABLE);
+  await client.query(ddl.CREATE_CACHE_EXACT_INDEX);
+  await client.query(ddl.CREATE_CACHE_SEMANTIC_INDEX);
+  await client.query(ddl.CREATE_CACHE_EXPIRY_INDEX);
+  await client.query(ddl.CREATE_CACHE_KB_VERSION_INDEX);
+  
+  console.log(`✅ Created response_cache table in ${schemaName}`);
+  return true;
+};
+
+/**
+ * Ensure cache table exists for a project (standalone, for migrations)
+ * @param {string} projectId - Project ID
+ * @returns {Promise<boolean>} True if table was created
+ */
+const ensureCacheTable = async (projectId) => {
+  const pool = getPool();
+  const schemaName = getSchemaName(projectId);
+  const client = await pool.connect();
+  
+  try {
+    await client.query("BEGIN");
+    const created = await ensureCacheTableInternal(client, schemaName);
+    await client.query("COMMIT");
+    return created;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(`❌ Failed to ensure cache table for ${projectId}:`, err.message);
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Drop schema and all data for a project
- * Use with caution - this permanently deletes all project embeddings
+ * Use with caution - this permanently deletes all project data
  * 
  * @param {string} projectId - Project ID
  * @returns {Promise<boolean>} True if schema was dropped
@@ -189,6 +196,7 @@ const ensureProjectSchema = async (projectId) => {
 const dropProjectSchema = async (projectId) => {
   const pool = getPool();
   const schemaName = getSchemaName(projectId);
+  const ddl = buildSchemaDDL(schemaName);
   
   const exists = await schemaExists(projectId);
   if (!exists) {
@@ -196,7 +204,7 @@ const dropProjectSchema = async (projectId) => {
     return false;
   }
   
-  await pool.query(`DROP SCHEMA "${schemaName}" CASCADE`);
+  await pool.query(ddl.DROP_SCHEMA);
   console.log(`🗑️ Dropped schema: ${schemaName}`);
   
   return true;
@@ -217,20 +225,8 @@ const getProjectStats = async (projectId) => {
     return { count: 0, schemaSize: "0 bytes" };
   }
   
-  const countResult = await pool.query(
-    `SELECT COUNT(*) as count FROM "${schemaName}"."${EMBEDDINGS_TABLE}"`
-  );
-  
-  const sizeResult = await pool.query(
-    `SELECT pg_size_pretty(
-      COALESCE(
-        (SELECT SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename)))
-         FROM pg_tables WHERE schemaname = $1),
-        0
-      )
-    ) as size`,
-    [schemaName]
-  );
+  const countResult = await pool.query(SCHEMA_QUERIES.GET_PROJECT_STATS(schemaName));
+  const sizeResult = await pool.query(SCHEMA_QUERIES.GET_SCHEMA_SIZE, [schemaName]);
   
   return {
     count: parseInt(countResult.rows[0]?.count || 0),
@@ -246,12 +242,7 @@ const getProjectStats = async (projectId) => {
 const listProjectSchemas = async () => {
   const pool = getPool();
   
-  const result = await pool.query(
-    `SELECT schema_name FROM information_schema.schemata 
-     WHERE schema_name LIKE $1
-     ORDER BY schema_name`,
-    [`${SCHEMA_PREFIX}%`]
-  );
+  const result = await pool.query(SCHEMA_QUERIES.LIST_PROJECT_SCHEMAS, [`${SCHEMA_PREFIX}%`]);
   
   return result.rows.map((row) => ({
     schemaName: row.schema_name,
@@ -279,13 +270,7 @@ const migrateProjectData = async (projectId, sourceTable = "aidlc_embeddings") =
     await client.query("BEGIN");
     
     // Check if source table exists
-    const sourceExists = await client.query(
-      `SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = $1
-      ) as exists`,
-      [sourceTable]
-    );
+    const sourceExists = await client.query(MIGRATION_QUERIES.CHECK_SOURCE_TABLE, [sourceTable]);
     
     if (!sourceExists.rows[0]?.exists) {
       console.log(`⚠️ Source table ${sourceTable} does not exist`);
@@ -293,9 +278,7 @@ const migrateProjectData = async (projectId, sourceTable = "aidlc_embeddings") =
     }
     
     // Count existing records in target
-    const existingCount = await client.query(
-      `SELECT COUNT(*) as count FROM "${schemaName}"."${EMBEDDINGS_TABLE}"`
-    );
+    const existingCount = await client.query(MIGRATION_QUERIES.COUNT_TARGET_RECORDS(schemaName));
     const existingNum = parseInt(existingCount.rows[0]?.count || 0);
     
     if (existingNum > 0) {
@@ -303,18 +286,11 @@ const migrateProjectData = async (projectId, sourceTable = "aidlc_embeddings") =
       return { migrated: 0, skipped: existingNum };
     }
     
-    // Migrate data from old table to new schema
-    // Note: The old table uses 'text' column, new uses 'content'
-    const insertResult = await client.query(`
-      INSERT INTO "${schemaName}"."${EMBEDDINGS_TABLE}" (content, metadata, embedding, created_at)
-      SELECT 
-        text as content,
-        metadata,
-        embedding,
-        COALESCE(created_at, NOW())
-      FROM "${sourceTable}"
-      WHERE metadata->>'projectId' = $1
-    `, [projectId]);
+    // Migrate data
+    const insertResult = await client.query(
+      MIGRATION_QUERIES.MIGRATE_DATA(schemaName, sourceTable),
+      [projectId]
+    );
     
     const migrated = insertResult.rowCount || 0;
     
@@ -333,14 +309,16 @@ const migrateProjectData = async (projectId, sourceTable = "aidlc_embeddings") =
 };
 
 module.exports = {
-  // Naming functions
+  // Naming functions (re-exported from sql-queries for compatibility)
   getSchemaName,
   getTableName,
   
   // Schema lifecycle
   schemaExists,
   tableExists,
+  cacheTableExists,
   ensureProjectSchema,
+  ensureCacheTable,
   dropProjectSchema,
   
   // Utilities
