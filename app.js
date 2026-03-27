@@ -22,8 +22,8 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 app.use("/api/v1", routes);
 
 app.use(express.static('app/build'));
-// app.get('*', (req, res) => {
-//   res.sendFile(path.resolve(__dirname, 'app', 'build', 'index.html'));
-// });
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve(__dirname, 'app', 'build', 'index.html'));
+});
 
 module.exports = app;
