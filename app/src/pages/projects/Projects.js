@@ -107,7 +107,7 @@ const Projects = () => {
                         onClick={() => openProjectPage(project._id)}
                         title="View Project"
                       >
-                        📂
+                        View
                       </button>
                       {isAdmin ? (
                         <button
@@ -125,7 +125,7 @@ const Projects = () => {
                           onClick={() => removeProject(project._id)}
                           disabled={actionLoading}
                         >
-                          🗑️
+                          Delete
                         </button>
                       ) : null}
                     </div>

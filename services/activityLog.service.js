@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const ActivityLog = require("../models/ActivityLogModel");
 const User = require("../models/UserModel");
 
@@ -234,11 +235,16 @@ const getTeamActivitySummary = async (projectId, days = 7) => {
   const since = new Date();
   since.setDate(since.getDate() - days);
   
+  // Convert string projectId to ObjectId for aggregation pipeline
+  const projectObjectId = typeof projectId === "string" 
+    ? new mongoose.Types.ObjectId(projectId) 
+    : projectId;
+  
   // Aggregate by user
   const pipeline = [
     {
       $match: {
-        projectId: projectId,
+        projectId: projectObjectId,
         createdAt: { $gte: since },
       },
     },

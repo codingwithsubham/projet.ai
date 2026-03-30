@@ -25,6 +25,7 @@ const authenticateMcpRequest = (req, res, next) => {
     // Attach resolved project, role, and user (from assignedTo) to the request
     req.mcpAuth = {
       projectId: keyEntry.projectId,
+      projectName: keyEntry.projectName || null,
       role: keyEntry.role,
       apiKeyId: keyEntry.id,
       apiKeyName: keyEntry.name,

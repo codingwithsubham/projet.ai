@@ -16,8 +16,8 @@ const getActivities = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    // Non-admin users can only see their own activity
-    const isAdmin = requester?.role === "admin";
+    // Non-admin/PM users can only see their own activity
+    const isAdmin = ["admin", "PM"].includes(requester?.role);
     const targetUserId = isAdmin && userId ? userId : requester?.id || requester?._id;
 
     if (!isAdmin && !targetUserId) {
@@ -76,7 +76,7 @@ const getProjectActivities = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid project id" });
     }
 
-    const isAdmin = requester?.role === "admin";
+    const isAdmin = ["admin", "PM"].includes(requester?.role);
 
     const options = {
       userId: isAdmin ? userId : (requester?.id || requester?._id),

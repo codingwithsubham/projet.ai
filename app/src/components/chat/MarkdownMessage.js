@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import ReactDOM from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
@@ -19,6 +20,90 @@ const ensureMermaidInit = (() => {
   };
 })();
 
+// Icon components for expand and download
+const ExpandIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 3 21 3 21 9" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const DownloadIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+// Modal component for expanded chart view
+const ChartExpandModal = ({ isOpen, onClose, svgContent, onDownload }) => {
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div className="chart-modal-overlay" onClick={onClose}>
+      <div
+        className="chart-modal-content"
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="chart-modal-header">
+          <span className="chart-modal-title">Chart View</span>
+          <div className="chart-modal-actions">
+            <button
+              className="chart-modal-btn chart-download-btn"
+              onClick={onDownload}
+              title="Download as PNG"
+            >
+              <DownloadIcon />
+              <span>Download PNG</span>
+            </button>
+            <button
+              className="chart-modal-btn chart-close-btn"
+              onClick={onClose}
+              title="Close"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        </div>
+        <div className="chart-modal-body">
+          <div
+            className="chart-modal-svg"
+            dangerouslySetInnerHTML={{ __html: svgContent }}
+          />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const normalizePipeTableMarkdown = (value = "") => {
   let normalized = String(value || "");
 
@@ -38,11 +123,78 @@ const normalizePipeTableMarkdown = (value = "") => {
 };
 
 const MermaidChart = ({ chart }) => {
-  const [renderedSvg, setRenderedSvg] = React.useState(null);
-  const [renderError, setRenderError] = React.useState(null);
-  const timeoutRef = React.useRef(null);
+  const [renderedSvg, setRenderedSvg] = useState(null);
+  const [renderError, setRenderError] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const timeoutRef = useRef(null);
 
-  React.useEffect(() => {
+  // Download chart as PNG
+  const handleDownload = useCallback(() => {
+    if (!renderedSvg) return;
+
+    const container = document.createElement("div");
+    container.innerHTML = renderedSvg;
+    const svg = container.querySelector("svg");
+
+    if (!svg) return;
+
+    // Parse dimensions from viewBox (most reliable for Mermaid SVGs)
+    let width = 800;
+    let height = 600;
+    const viewBox = svg.getAttribute("viewBox");
+    if (viewBox) {
+      const parts = viewBox.split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        width = parts[2];
+        height = parts[3];
+      }
+    } else {
+      // Fallback: try width/height attributes (only if numeric)
+      const attrW = parseFloat(svg.getAttribute("width"));
+      const attrH = parseFloat(svg.getAttribute("height"));
+      if (attrW > 0) width = attrW;
+      if (attrH > 0) height = attrH;
+    }
+
+    // Set explicit dimensions on the SVG so the image renders at full size
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+
+    // Create canvas with 2x scale for sharper output
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(width * scale);
+    canvas.height = Math.ceil(height * scale);
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    // Convert SVG to data URL
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(svgUrl);
+
+      // Trigger download
+      const link = document.createElement("a");
+      link.download = `chart-${Date.now()}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+    img.onerror = () => {
+      console.error("Failed to load SVG for download");
+      URL.revokeObjectURL(svgUrl);
+    };
+    img.src = svgUrl;
+  }, [renderedSvg]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const run = async () => {
@@ -112,13 +264,30 @@ const MermaidChart = ({ chart }) => {
   }
 
   return (
-    <div className="chat-markdown__mermaid-wrap">
-      <div
-        className="charts"
-        dangerouslySetInnerHTML={{ __html: renderedSvg }}
-        style={{ overflow: "auto" }}
+    <>
+      <div className="chat-markdown__mermaid-wrap">
+        <div className="chart-toolbar">
+          <button
+            className="chart-toolbar-btn"
+            onClick={() => setIsExpanded(true)}
+            title="Expand chart"
+          >
+            <ExpandIcon />
+          </button>
+        </div>
+        <div
+          className="charts"
+          dangerouslySetInnerHTML={{ __html: renderedSvg }}
+          style={{ overflow: "auto" }}
+        />
+      </div>
+      <ChartExpandModal
+        isOpen={isExpanded}
+        onClose={() => setIsExpanded(false)}
+        svgContent={renderedSvg}
+        onDownload={handleDownload}
       />
-    </div>
+    </>
   );
 };
 

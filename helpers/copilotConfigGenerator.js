@@ -1,7 +1,10 @@
 /**
  * Generate Copilot configuration files for developers
- * Creates copilot-instructions.md content with MCP server config
+ * Creates copilot-instructions.md and agent mode content with MCP server config
  */
+
+const fs = require("fs");
+const path = require("path");
 
 const getBaseUrl = () => {
   // Use environment variable or default to localhost
@@ -127,6 +130,77 @@ ${conventions || "No specific conventions defined. Ask the Knowledge Hub for cod
 };
 
 /**
+ * Generate the VS Code agent mode configuration (agents.json)
+ */
+const generateAgentConfig = (project, apiKeyPreview = "YOUR_API_KEY") => {
+  const serverName = `${project.name.toLowerCase().replace(/\s+/g, "-")}-hub`;
+
+  return {
+    "projetai-dev": {
+      instructions: ".github/agents/projetai-dev.md",
+      tools: [`mcp::${serverName}`],
+      description: `Pro-jet.ai Dev Agent for ${project.name} — search project knowledge, user stories, docs, and codebase`,
+    },
+  };
+};
+
+/**
+ * Load the agent template content and customize it for the project
+ */
+const generateAgentInstructions = (project) => {
+  const templatePath = path.join(__dirname, "..", "agent-templates", "projetai-dev-agent.md");
+  
+  try {
+    let content = fs.readFileSync(templatePath, "utf-8");
+    // Customize the template with project-specific info
+    content = content.replace(/Pro-jet\.ai Dev Agent/g, `${project.name} Dev Agent`);
+    return content;
+  } catch (err) {
+    console.warn("Agent template not found, using inline template");
+    return generateFallbackAgentInstructions(project);
+  }
+};
+
+/**
+ * Fallback agent instructions if template file not found
+ */
+const generateFallbackAgentInstructions = (project) => {
+  return `# ${project.name} Dev Agent
+
+You are a senior software engineer AI assistant connected to the **${project.name}** Digital Knowledge Hub via MCP.
+
+## Key Principle: RAG-First
+
+**ALWAYS call \`search_hub\` FIRST** for any project question. The Knowledge Hub contains indexed source code, documents, user stories, architecture docs, and more.
+
+## Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| \`search_hub\` | Search the Knowledge Hub — **use FIRST** |
+| \`get_my_activity\` | Recall your recent work |
+| \`get_team_activity\` | Team progress (PM/Admin) |
+| \`get_developer_context\` | Handoff context |
+
+## What You Can Do
+
+1. **User Stories & Requirements** — Find stories, epics, bugs, acceptance criteria
+2. **Project Documentation** — Search SRS, architecture docs, API specs
+3. **Codebase Understanding** — Find code patterns, explain implementations
+4. **Implementation Assistance** — Follow project conventions from the KB
+5. **Developer Handoff** — Get context when taking over work
+6. **Code Review Context** — Cross-reference changes against requirements
+
+## Guidelines
+
+- Ground answers in hub data
+- Be specific — reference exact documents and files
+- Admit gaps — if the hub lacks info, say so
+- No hallucination — don't fabricate answers
+`;
+};
+
+/**
  * Generate a complete configuration package
  */
 const generateConfigPackage = (project, options = {}) => {
@@ -142,15 +216,21 @@ const generateConfigPackage = (project, options = {}) => {
         path: ".github/copilot-instructions.md",
         content: generateCopilotInstructions(project, options),
       },
+      "projetai-dev.md": {
+        path: ".github/agents/projetai-dev.md",
+        content: generateAgentInstructions(project),
+      },
     },
     mcpConfig: generateMcpConfig(project, apiKeyPreview),
+    agentConfig: generateAgentConfig(project, apiKeyPreview),
     vsCodeSettings: generateVsCodeSettings(project, apiKeyPreview),
     instructions: {
       setup: [
-        "1. Copy the copilot-instructions.md content to .github/copilot-instructions.md in your project",
-        "2. Add the MCP configuration to your VS Code settings.json",
-        "3. Replace YOUR_API_KEY with your personal API key from the Knowledge Hub",
-        "4. Reload VS Code to activate the MCP connection",
+        "1. Copy copilot-instructions.md to .github/copilot-instructions.md in your project",
+        "2. Copy projetai-dev.md to .github/agents/projetai-dev.md for the custom agent mode",
+        "3. Add the MCP configuration to .vscode/mcp.json",
+        "4. Replace YOUR_API_KEY with your personal API key",
+        "5. Reload VS Code — use @projetai-dev in Copilot Chat to activate the agent",
       ],
       apiKey: "Request an API key from your project admin. Make sure it's assigned to your user account for activity tracking.",
     },
@@ -159,6 +239,8 @@ const generateConfigPackage = (project, options = {}) => {
 
 module.exports = {
   generateCopilotInstructions,
+  generateAgentInstructions,
+  generateAgentConfig,
   generateMcpConfig,
   generateVsCodeSettings,
   generateConfigPackage,

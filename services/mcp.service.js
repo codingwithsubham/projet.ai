@@ -17,18 +17,21 @@ const activityLogService = require("./activityLog.service");
  * @param {string} mcpAuth.role - User role
  */
 const createMcpServerForProject = (mcpAuth) => {
-  const { projectId, userId, apiKeyId, role } = mcpAuth;
+  const { projectId, projectName, userId, apiKeyId, role } = mcpAuth;
+  
+  const serverLabel = projectName || projectId;
   
   const mcpServer = new McpServer({
-    name: "KnowledgeHub",
+    name: `KnowledgeHub – ${serverLabel}`,
     version: "1.0.0",
   });
 
   // Tool: search_hub - RAG search with activity logging
   mcpServer.tool(
     "search_hub",
-    `ALWAYS use this tool FIRST for any question about the project, codebase, or documentation.
-This tool searches the Knowledge Hub which contains indexed project codes, documents, SRS, user stories, epics, bugs, API specs, architecture docs, and source code.
+    `Search the Knowledge Hub for the "${serverLabel}" project.
+ALWAYS use this tool FIRST for any question about the "${serverLabel}" project, its codebase, or documentation.
+This tool searches ONLY the "${serverLabel}" project's indexed codes, documents, SRS, user stories, epics, bugs, API specs, architecture docs, and source code.
 The Knowledge Hub is the PRIMARY source of truth - it has been pre-indexed from project repositories and documents.
 Only if this tool returns insufficient results should you consider other data sources.
 This is a READ operation - execute immediately without asking for confirmation.`,
@@ -93,7 +96,7 @@ This is a READ operation - execute immediately without asking for confirmation.`
   // Tool: get_my_activity - Get current user's recent activity
   mcpServer.tool(
     "get_my_activity",
-    "Get your recent activity and what you were working on. Useful for recalling context or reviewing your progress.",
+    `Get your recent activity on the "${serverLabel}" project. Useful for recalling context or reviewing your progress.`,
     {
       days: z.number().optional().default(7).describe("Number of days to look back (default: 7)"),
     },
@@ -131,7 +134,7 @@ This is a READ operation - execute immediately without asking for confirmation.`
   // Tool: get_team_activity - Get team activity summary (for PMs and leads)
   mcpServer.tool(
     "get_team_activity",
-    "Get a summary of what the team has been working on. Shows activity by team member.",
+    `Get a summary of what the team has been working on for the "${serverLabel}" project. Shows activity by team member.`,
     {
       days: z.number().optional().default(7).describe("Number of days to look back (default: 7)"),
     },
@@ -169,7 +172,7 @@ This is a READ operation - execute immediately without asking for confirmation.`
   // Tool: get_developer_context - Get specific developer's context (for handoff)
   mcpServer.tool(
     "get_developer_context",
-    "Get what a specific developer has been working on. Useful for handoffs when someone is on leave.",
+    `Get what a specific developer has been working on in the "${serverLabel}" project. Useful for handoffs when someone is on leave.`,
     {
       developerName: z.string().describe("Name of the developer (partial match supported)"),
       days: z.number().optional().default(7).describe("Number of days to look back (default: 7)"),

@@ -1014,31 +1014,95 @@ button.projects-btn.icon-btn {
   flex-wrap: wrap;
 }
 
-.kb-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 12px;
+.kb-panel {
+  display: flex;
+  flex-direction: column;
   min-height: 340px;
 }
 
-.kb-left,
-.kb-right {
-  border: 1px solid #d8d8d8;
-  border-radius: 8px;
-  background: #fff;
-  padding: 12px;
+/* Tabs bar */
+.kb-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #e5e5e5;
+  margin-bottom: 0;
 }
 
-.kb-left__header {
+.kb-tab {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
 }
 
-.kb-left__header h3 {
-  margin: 0;
-  font-size: 16px;
+.kb-tab:hover {
+  color: #333;
+}
+
+.kb-tab--active {
+  color: #111;
+  border-bottom-color: #111;
+}
+
+.kb-tab__count {
+  background: #e9ecef;
+  color: #555;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.kb-tab--active .kb-tab__count {
+  background: #111;
+  color: #fff;
+}
+
+/* Tab body */
+.kb-tab-body {
+  padding: 20px 4px;
+}
+
+/* Documents tab split layout */
+.kb-docs-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.kb-docs-left {
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fafafa;
+}
+
+.kb-docs-left__title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kb-docs-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .kb-doc-list {
@@ -1236,7 +1300,7 @@ button.projects-btn.icon-btn {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 300px;
+  max-height: 500px;
   overflow-y: auto;
 }
 
@@ -1705,7 +1769,7 @@ button.projects-btn.icon-btn {
   padding: 10px;
 }
 
-.chat-markdown__mermaid-wrap svg {
+.chat-markdown__mermaid-wrap > .charts svg {
   min-width: 150px;
   height: auto;
   display: block;
@@ -1727,6 +1791,182 @@ button.projects-btn.icon-btn {
   background: #fff3e0;
   padding: 12px;
   margin: 8px 0;
+}
+
+/* Chart Toolbar */
+.chart-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chart-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chart-toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  max-width: 16px !important;
+  flex-shrink: 0;
+}
+
+.chart-toolbar-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+  border-color: #bdbdbd;
+}
+
+/* Chart Expand Modal */
+.chart-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.chart-modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 90vw;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: chartModalIn 0.2s ease-out;
+}
+
+@keyframes chartModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chart-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.chart-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.chart-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chart-modal-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #333;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chart-modal-btn:hover {
+  background: #f5f5f5;
+  border-color: #bdbdbd;
+}
+
+.chart-download-btn {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.chart-download-btn:hover {
+  background: #333;
+  border-color: #333;
+}
+
+.chart-close-btn {
+  padding: 8px;
+  border: none;
+  background: transparent;
+}
+
+.chart-close-btn:hover {
+  background: #f5f5f5;
+}
+
+.chart-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  min-height: 300px;
+}
+
+.chart-modal-svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.chart-modal-svg svg {
+  max-width: 100% !important;
+  min-width: auto !important;
+  max-height: calc(90vh - 120px);
+  height: auto;
+  width: auto;
+}
+
+.chart-modal-btn svg {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  max-width: 16px !important;
+  flex-shrink: 0;
+}
+
+.chart-close-btn svg {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  max-width: 20px !important;
 }
 
 .chat-bubble--user {
@@ -2071,6 +2311,85 @@ span.app-navbar__icon.role {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid #e9ecef;
+}
+
+/* ===================== Developer Read-Only Sections ===================== */
+.dev-readonly-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e9ecef;
+}
+
+.dev-readonly-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dev-readonly-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.dev-readonly-count {
+  background: #e9ecef;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.dev-readonly-list {
+  display: grid;
+  gap: 8px;
+}
+
+.dev-readonly-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.dev-readonly-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dev-readonly-identifier {
+  font-weight: 600;
+  font-size: 14px;
+  color: #222;
+}
+
+.dev-readonly-link {
+  font-size: 13px;
+  color: #0969da;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.dev-readonly-link:hover {
+  text-decoration: underline;
+}
+
+.dev-readonly-badge-pending {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fff3cd;
+  color: #856404;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 /* ===================== IDE Connect Modal ===================== */

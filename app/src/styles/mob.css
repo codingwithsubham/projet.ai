@@ -802,8 +802,55 @@
   padding: 8px;
 }
 
-.mob-markdown .chat-markdown__mermaid-wrap svg {
+.mob-markdown .chat-markdown__mermaid-wrap > .charts svg {
   min-width: 440px;
+}
+
+/* Mobile Chart Modal Styles */
+.mob-markdown .chart-toolbar {
+  margin-bottom: 6px;
+}
+
+.mob-markdown .chart-toolbar-btn {
+  width: 28px;
+  height: 28px;
+}
+
+@media (max-width: 768px) {
+  .chart-modal-content {
+    width: 95vw;
+    max-height: 95vh;
+    border-radius: 8px;
+  }
+
+  .chart-modal-header {
+    padding: 12px 16px;
+  }
+
+  .chart-modal-title {
+    font-size: 14px;
+  }
+
+  .chart-modal-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .chart-modal-btn span {
+    display: none;
+  }
+
+  .chart-download-btn {
+    padding: 8px;
+  }
+
+  .chart-modal-body {
+    padding: 16px;
+  }
+
+  .chart-modal-svg svg {
+    max-height: calc(95vh - 100px);
+  }
 }
 
 .mob-chat-input {

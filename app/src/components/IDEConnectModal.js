@@ -116,6 +116,7 @@ const IDEConnectModal = ({ isOpen, onClose, projectName, projectId, apiKey }) =>
   };
 
   const instructionsContent = copilotConfig?.files?.["copilot-instructions.md"]?.content || "";
+  const agentContent = copilotConfig?.files?.["projetai-dev.md"]?.content || "";
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -225,8 +226,52 @@ const IDEConnectModal = ({ isOpen, onClose, projectName, projectId, apiKey }) =>
                 </div>
               )}
 
+              {selectedIDE === "vscode" && (
+                <div className="ide-instructions__step">
+                  <span className="step-number">5</span>
+                  <div className="step-content">
+                    <strong>Add Custom Dev Agent (Recommended)</strong>
+                    <p>
+                      Download and place this file at <code>.github/agents/projetai-dev.md</code> in your project.
+                      This creates a custom <strong>@projetai-dev</strong> agent in Copilot Chat that is pre-configured to search your Knowledge Hub.
+                    </p>
+                    {loadingConfig ? (
+                      <p className="kb-muted">Loading config...</p>
+                    ) : agentContent ? (
+                      <div className="code-block">
+                        <div className="code-block__header">
+                          <span>projetai-dev.md</span>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button className="code-block__copy" onClick={() => handleCopy(agentContent, "agent")}>
+                              {copied === "agent" ? "✓ Copied!" : "📋 Copy"}
+                            </button>
+                            <button className="code-block__copy" onClick={() => handleDownload(agentContent, "projetai-dev.md")}>
+                              ⬇️ Download
+                            </button>
+                          </div>
+                        </div>
+                        <pre className="code-block__content" style={{ maxHeight: 200, overflow: "auto" }}>{agentContent}</pre>
+                      </div>
+                    ) : (
+                      <p className="kb-muted">Could not load agent file.</p>
+                    )}
+                    <div className="ide-agent-usage">
+                      <p style={{ marginTop: 10, fontSize: 13 }}>
+                        <strong>How to use:</strong> Type <code>@projetai-dev</code> in Copilot Chat, then ask your question:
+                      </p>
+                      <ul style={{ fontSize: 13, color: "#555", margin: "6px 0", paddingLeft: 20 }}>
+                        <li><code>@projetai-dev</code> Show me user stories for the checkout module</li>
+                        <li><code>@projetai-dev</code> How does authentication work in our app?</li>
+                        <li><code>@projetai-dev</code> What was I working on last week?</li>
+                        <li><code>@projetai-dev</code> Get handoff context for Ananya</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="ide-instructions__step">
-                <span className="step-number">{selectedIDE === "vscode" ? "5" : "4"}</span>
+                <span className="step-number">{selectedIDE === "vscode" ? "6" : "4"}</span>
                 <div className="step-content">
                   <strong>Restart your IDE</strong>
                   <p>
@@ -239,8 +284,7 @@ const IDEConnectModal = ({ isOpen, onClose, projectName, projectId, apiKey }) =>
 
             <div className="ide-instructions__footer">
               <p>
-                💡 <strong>Tip:</strong> Once connected, you can ask your AI assistant about this project's codebase,
-                generate documents, and more!
+                💡 <strong>Tip:</strong> Once connected, use <code>@projetai-dev</code> in Copilot Chat to query your project's Knowledge Hub — search user stories, browse codebase, get handoff context, and more!
               </p>
             </div>
           </div>

@@ -227,14 +227,17 @@ const getActiveApiKeysForCache = async () => {
       keyHash: 1,
       assignedTo: 1,
     }
-  ).lean();
+  )
+    .populate("projectId", "name")
+    .lean();
 
   return rows.map((row) => ({
     id: String(row._id),
     keyHash: row.keyHash,
     name: row.name,
     role: row.role,
-    projectId: String(row.projectId),
+    projectId: String(row.projectId?._id || row.projectId),
+    projectName: row.projectId?.name || null,
     expiresAt: row.expiresAt,
     assignedTo: row.assignedTo ? String(row.assignedTo) : null,
   }));
