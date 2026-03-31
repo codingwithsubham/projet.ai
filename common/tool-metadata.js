@@ -399,6 +399,105 @@ const TOOL_REGISTRY = {
     description: "Remove issues from a Jira epic",
   },
 
+  // === SPRINT ANALYTICS TOOLS (Priority 1 - Computed from existing data) ===
+  get_sprint_velocity: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Calculate sprint velocity over recent sprints",
+  },
+  get_burndown_data: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Get burndown data for active or specified sprint",
+  },
+  get_cycle_time: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Calculate average cycle time for resolved issues",
+  },
+  detect_blockers: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Detect blocked or stale issues in active sprint",
+  },
+  analyze_sprint_health: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Compute composite sprint health score with insights",
+  },
+
+  // === REPORT TEMPLATE TOOLS (Priority 1 - Aggregated reports) ===
+  generate_standup_digest: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Generate daily standup digest with team activity and blockers",
+  },
+  generate_sprint_review: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Generate sprint review report with velocity and stats",
+  },
+  generate_weekly_status: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Generate weekly status report for stakeholders",
+  },
+
+  // === RISK INTELLIGENCE TOOLS (Priority 1 - Proactive risk detection) ===
+  detect_scope_creep: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Detect scope creep by comparing sprint commitment vs added issues",
+  },
+  predict_sprint_completion: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Predict sprint completion probability based on velocity and remaining work",
+  },
+  identify_dependency_risks: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Identify dependency risks and blocked chains in active sprint",
+  },
+
+  // === CAPACITY & UTILIZATION TOOLS (Priority 1 - Resource insights) ===
+  analyze_workload: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Analyze team workload distribution and flag imbalances",
+  },
+  analyze_team_utilization: {
+    category: TOOL_CATEGORY.ACTIVITY,
+    operation: OPERATION_TYPE.READ,
+    priority: 1,
+    autoExecute: true,
+    description: "Analyze team utilization trends across recent sprints",
+  },
+
   // === EXTERNAL WRITE TOOLS (Priority 3 - May need confirmation) ===
   create_branch: {
     category: TOOL_CATEGORY.EXTERNAL_WRITE,
@@ -475,6 +574,18 @@ const EXTERNAL_PREFERRED_PATTERNS = [
   /backlog|kanban|scrum board/i,
   /story point|velocity/i,
   /transition|workflow state/i,
+  /burndown|burn.?down/i,
+  /cycle time|lead time/i,
+  /blocker|blocked|stale issue/i,
+  /sprint health|sprint score/i,
+  /standup|daily update|morning update/i,
+  /sprint review|sprint report/i,
+  /weekly status|weekly report/i,
+  /scope creep|scope change|sprint change/i,
+  /predict.*complet|forecast|will we finish|on track/i,
+  /dependenc(y|ies)|blocked.*chain|cross.?team risk/i,
+  /workload|work.?distribution|who is overloaded/i,
+  /team utilization|capacity trend|team performance/i,
 ];
 
 /**

@@ -65,6 +65,10 @@ const selectRuleLines = ({ agentType, intent, boardPlatform }) => {
       ...RULE_PACKS.pm.formattingRules,
       ...sharedToolCycle,
       ...RULE_PACKS.pm.closeout,
+      ...RULE_PACKS.pm.analyticsRules,
+      ...RULE_PACKS.pm.reportingRules,
+      ...RULE_PACKS.pm.riskRules,
+      ...RULE_PACKS.pm.capacityRules,
     ];
 
     if (intent === "write") {
