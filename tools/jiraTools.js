@@ -9,11 +9,14 @@ const PM_ALLOWED_JIRA_TOOLS = new Set([
   "jira_search_issues",
   "jira_list_projects",
   "jira_get_project",
-  "jira_list_sprints",
+  "jira_get_sprints",
   "jira_get_sprint",
   "jira_create_sprint",
   "jira_get_board",
-  "jira_list_boards",
+  "jira_get_boards",
+  "jira_get_board_configuration",
+  "jira_get_sprint_issues",
+  "jira_move_issues_to_sprint",
   "jira_transition_issue",
   "jira_add_comment",
   "jira_get_transitions",
@@ -23,16 +26,21 @@ const PM_ALLOWED_JIRA_TOOLS = new Set([
   "jira_get_issue_summary",
   "jira_search_issues_summary",
   "jira_get_my_open_issues",
+  "jira_get_epics",
+  "jira_get_epic_issues",
+  "jira_move_issues_to_epic",
+  "jira_remove_issues_from_epic",
 ]);
 
 // Jira tools allowed for Dev agent (subset)
 const DEV_ALLOWED_JIRA_TOOLS = new Set([
   "jira_get_issue",
   "jira_search_issues",
-  "jira_list_sprints",
+  "jira_get_sprints",
   "jira_get_sprint",
   "jira_get_board",
-  "jira_list_boards",
+  "jira_get_boards",
+  "jira_get_sprint_issues",
   "jira_get_transitions",
   "jira_transition_issue",
   "jira_add_comment",
@@ -40,6 +48,8 @@ const DEV_ALLOWED_JIRA_TOOLS = new Set([
   "jira_get_statuses",
   "jira_get_issue_summary",
   "jira_get_my_open_issues",
+  "jira_get_epics",
+  "jira_get_epic_issues",
 ]);
 
 // Read-only Jira tools (no confirmation needed)
@@ -48,16 +58,20 @@ const JIRA_READ_ONLY_TOOLS = new Set([
   "jira_search_issues",
   "jira_list_projects",
   "jira_get_project",
-  "jira_list_sprints",
+  "jira_get_sprints",
   "jira_get_sprint",
   "jira_get_board",
-  "jira_list_boards",
+  "jira_get_boards",
+  "jira_get_board_configuration",
+  "jira_get_sprint_issues",
   "jira_get_transitions",
   "jira_get_issue_comments",
   "jira_get_statuses",
   "jira_get_issue_summary",
   "jira_search_issues_summary",
   "jira_get_my_open_issues",
+  "jira_get_epics",
+  "jira_get_epic_issues",
 ]);
 
 const normalizeToolName = (name) =>

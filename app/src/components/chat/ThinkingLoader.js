@@ -19,22 +19,27 @@ const THINKING_PHASES = [
   { icon: "🚀", text: "Generating response..." },
 ];
 
-const ThinkingLoader = () => {
+const ThinkingLoader = ({ statusText = "" }) => {
   const [phaseIndex, setPhaseIndex] = useState(0);
 
   useEffect(() => {
+    // If backend is sending real status, don't auto-cycle
+    if (statusText) return;
+
     const interval = setInterval(() => {
       setPhaseIndex((prev) => (prev + 1) % THINKING_PHASES.length);
     }, 4500);
     return () => clearInterval(interval);
-  }, []);
+  }, [statusText]);
 
-  const phase = THINKING_PHASES[phaseIndex];
+  // Use real status from backend pipeline if available
+  const displayText = statusText || THINKING_PHASES[phaseIndex].text;
+  const displayIcon = statusText ? "⚡" : THINKING_PHASES[phaseIndex].icon;
 
   return (
     <div className="thinking-loader">
       <div className="thinking-loader__icon-ring">
-        <span className="thinking-loader__icon">{phase.icon}</span>
+        <span className="thinking-loader__icon">{displayIcon}</span>
         <svg className="thinking-loader__spinner" viewBox="0 0 36 36">
           <circle
             className="thinking-loader__track"
@@ -51,8 +56,8 @@ const ThinkingLoader = () => {
         </svg>
       </div>
       <div className="thinking-loader__body">
-        <span className="thinking-loader__text" key={phaseIndex}>
-          {phase.text}
+        <span className="thinking-loader__text" key={statusText || phaseIndex}>
+          {displayText}
         </span>
         <div className="thinking-loader__shimmer">
           <div className="thinking-loader__shimmer-line" />

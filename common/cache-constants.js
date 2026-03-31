@@ -32,9 +32,8 @@ const L1_CACHE_CONFIG = {
  */
 const L2_CACHE_CONFIG = {
   // Minimum cosine similarity score to consider a cache hit
-  // Higher = stricter matching (fewer false positives)
-  // 0.92 provides excellent precision while catching rephrased queries
-  SIMILARITY_THRESHOLD: 0.92,
+  // 0.95 provides high precision — only near-identical queries match
+  SIMILARITY_THRESHOLD: 0.95,
   
   // Fallback threshold for high-confidence partial matches
   // Used when combined with other matching signals
@@ -124,13 +123,28 @@ const NON_CACHEABLE_PATTERNS = [
   
   // Explicit freshness requests
   /\b(refresh|reload|update|new)\b/i,
+
+  // Jira / board action queries (always need real-time execution)
+  /\b(jira|sprint|epic|board|backlog|scrum|kanban|issue|ticket|story|stories|assign|transition|move to)\b/i,
+
+  // Planning & creation queries (dynamic, context-dependent)
+  /\b(plan|create|generate|build|draft|prepare|set up|setup)\b/i,
+
+  // Queries referencing external documents/context
+  /\b(based on|according to|from the|from my|SRS|PRD|BRD|document|attachment|uploaded)\b/i,
+
+  // Conversational / follow-up queries
+  /\b(let'?s|please|can you|could you|help me|show me)\b/i,
+
+  // Pull/fetch/snapshot queries
+  /\b(pull|fetch|snapshot|summary|report|overview)\b/i,
 ];
 
 /**
  * Agent types that support caching
  * Some agent types may have side effects that make caching inappropriate
  */
-const CACHEABLE_AGENT_TYPES = ['dev', 'PM', 'general'];
+const CACHEABLE_AGENT_TYPES = ['dev', 'general'];
 
 /**
  * Intents that support caching

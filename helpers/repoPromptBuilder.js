@@ -134,11 +134,15 @@ const buildBoardPromptSection = (project) => {
   }
 
   if (boardConfig.platform === "jira") {
+    const boardId = boardConfig.jira?.boardId || "";
     lines.push(
       "",
       "Project Board: Jira",
       `- Jira Project Key: ${boardConfig.jira?.projectKey || "N/A"}`,
       `- Jira Base URL: ${boardConfig.jira?.baseUrl || "N/A"}`,
+      boardId
+        ? `- Jira Board ID: ${boardId} (use this directly for sprint/board operations)`
+        : "- Jira Board ID: Not configured. Call jira_get_boards with projectKeyOrId to discover it.",
       "- Use Jira tools (jira_search_issues, jira_get_issue, jira_create_issue, etc.) for all board operations.",
       "- When creating issues, always set the project key to the value above.",
     );

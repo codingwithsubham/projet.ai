@@ -31,6 +31,7 @@ const BoardConfigSchema = new mongoose.Schema(
       email: { type: String, trim: true, default: "" },
       apiToken: { type: String, trim: true, default: "" },
       projectKey: { type: String, trim: true, default: "" },
+      boardId: { type: String, trim: true, default: "" },
     },
   },
   { _id: false }

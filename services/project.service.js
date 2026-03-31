@@ -280,6 +280,7 @@ const saveBoardConfig = async (projectId, config) => {
       email: jira.email.trim(),
       apiToken: jira.apiToken.trim(),
       projectKey: jira.projectKey.trim().toUpperCase(),
+      boardId: jira.boardId ? String(jira.boardId).trim() : "",
     };
   }
 

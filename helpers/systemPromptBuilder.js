@@ -76,10 +76,10 @@ const selectRuleLines = ({ agentType, intent, boardPlatform }) => {
     }
 
     if (intent === "read") {
-      return [...pmLines, ...RULE_PACKS.pm.writeGuardrails.slice(3, 5)];
+      return [...pmLines, ...RULE_PACKS.pm.writeGuardrails.slice(3, 5), ...getPlanningRules()];
     }
 
-    return [...pmLines, ...RULE_PACKS.pm.writeGuardrails];
+    return [...pmLines, ...RULE_PACKS.pm.writeGuardrails, ...getPlanningRules()];
   }
 
   const devBase = [...RULE_PACKS.dev.persona, ...sharedBase, ...sharedToolCycle];

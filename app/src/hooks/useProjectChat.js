@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createChatSessionApi,
   getChatHistoryApi,
   getChatSessionsApi,
   sendChatApi,
+  streamChatApi,
   deleteChatSessionApi,
 } from "../services/chat.api";
 
@@ -16,6 +17,12 @@ export const useProjectChat = (projectId) => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [streamStatus, setStreamStatus] = useState("");
+
+  // Token batching refs (prevents per-character re-renders)
+  const tokenBufferRef = useRef("");
+  const flushTimerRef = useRef(null);
+  const abortRef = useRef(null);
 
   const loadHistory = useCallback(async (sessionId) => {
     if (!projectId || !sessionId) return;
@@ -144,22 +151,112 @@ export const useProjectChat = (projectId) => {
 
     setSending(true);
     setError("");
+    setStreamStatus("");
+    tokenBufferRef.current = "";
 
-    const optimistic = { _id: `temp-${Date.now()}`, role: "user", content: message };
-    setMessages((prev) => [...prev, optimistic]);
+    const optimisticUser = { _id: `temp-${Date.now()}`, role: "user", content: message };
+    setMessages((prev) => [...prev, optimisticUser]);
     setInput("");
 
-    try {
-      const res = await sendChatApi(projectId, message, activeSessionId);
-      const chats = res?.data?.chats;
-      if (Array.isArray(chats)) setMessages(chats);
+    // Flush buffered tokens into the streaming assistant message
+    const flushTokens = () => {
+      const chunk = tokenBufferRef.current;
+      if (!chunk) return;
+      tokenBufferRef.current = "";
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last._id === "__streaming__") {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...last, content: (last.content || "") + chunk };
+          return updated;
+        }
+        return prev;
+      });
+    };
 
-      const refreshed = await loadSessions();
-      setSessions(refreshed);
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
+    try {
+      let firstTokenReceived = false;
+
+      await streamChatApi(projectId, message, activeSessionId, {
+        signal: abortController.signal,
+
+        onStatus: (status) => {
+          setStreamStatus(status);
+        },
+
+        onToken: (token) => {
+          if (!firstTokenReceived) {
+            firstTokenReceived = true;
+            setStreamStatus("");
+            // Add streaming assistant bubble
+            setMessages((prev) => [
+              ...prev,
+              { _id: "__streaming__", role: "assistant", content: token },
+            ]);
+          } else {
+            // Buffer tokens, flush every 50ms for smooth rendering
+            tokenBufferRef.current += token;
+            if (!flushTimerRef.current) {
+              flushTimerRef.current = setTimeout(() => {
+                flushTimerRef.current = null;
+                flushTokens();
+              }, 50);
+            }
+          }
+        },
+
+        onCached: (cachedResponse) => {
+          setStreamStatus("");
+          setMessages((prev) => [
+            ...prev,
+            { _id: `cached-${Date.now()}`, role: "assistant", content: cachedResponse },
+          ]);
+        },
+
+        onDone: (data) => {
+          // Flush any remaining tokens
+          if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current);
+            flushTimerRef.current = null;
+          }
+          flushTokens();
+
+          // Replace optimistic messages with server-saved chats
+          if (data?.chats && Array.isArray(data.chats)) {
+            setMessages(data.chats);
+          }
+        },
+
+        onError: (errMsg) => {
+          setError(errMsg || "Stream error occurred");
+        },
+      });
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to send message");
+      if (err.name === "AbortError") return;
+
+      // Fallback to non-streaming API
+      console.warn("Stream failed, falling back to non-streaming:", err.message);
+      try {
+        const res = await sendChatApi(projectId, message, activeSessionId);
+        const chats = res?.data?.chats;
+        if (Array.isArray(chats)) setMessages(chats);
+      } catch (fallbackErr) {
+        setError(fallbackErr?.response?.data?.message || fallbackErr?.message || "Failed to send message");
+      }
     } finally {
       setSending(false);
+      setStreamStatus("");
+      abortRef.current = null;
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+
+      // Refresh sessions in background
+      loadSessions().then((s) => setSessions(s)).catch(() => {});
     }
   }, [activeSessionId, input, loadSessions, projectId, sending]);
 
@@ -179,5 +276,6 @@ export const useProjectChat = (projectId) => {
     newChat,
     deleteSession,
     refreshActiveSession,
+    streamStatus,
   };
 };

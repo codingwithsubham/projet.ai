@@ -1,6 +1,7 @@
 const ChatSession = require("../models/ChatSessionModel");
 const {
   coreOrchastrator,
+  coreOrchastratorStream,
   maybeStartAsyncImplementation,
 } = require("../orchestration/core-agent.service");
 const {
@@ -68,6 +69,52 @@ const sendChatMessageToDynamicAgent = async ({
     console.log("Error in sendChatMessageToDynamicAgent:", error);
     throw error;
   }
+};
+
+const streamChatMessage = async function* ({
+  projectId,
+  message,
+  sessionId,
+  requester = null,
+}) {
+  const requesterContext = getRequesterContext(requester);
+  const selectedAgentType = requester
+    ? requesterContext.agentType
+    : "general";
+
+  // Check for async implementation first
+  const asyncStartResult = await maybeStartAsyncImplementation({
+    projectId,
+    message,
+    sessionId,
+    agentType: selectedAgentType,
+    userId: requesterContext.userId,
+    isAdmin: requesterContext.isAdmin,
+    requester,
+  });
+
+  if (asyncStartResult) {
+    yield { type: "cached", data: asyncStartResult.response };
+    yield {
+      type: "done",
+      data: {
+        sessionId: asyncStartResult.sessionId,
+        chats: asyncStartResult.chats,
+        async: true,
+      },
+    };
+    return;
+  }
+
+  yield* coreOrchastratorStream({
+    projectId,
+    message,
+    sessionId,
+    agentType: selectedAgentType,
+    userId: requesterContext.userId,
+    isAdmin: requesterContext.isAdmin,
+    requester,
+  });
 };
 
 // Build the text to be stored in the knowledge base from happy feedback, including the user's original question, the LLM's final response, and the user's feedback
@@ -169,6 +216,7 @@ const deleteChatSession = async (projectId, sessionId, requester = null) => {
 
 module.exports = {
   sendChatMessageToDynamicAgent,
+  streamChatMessage,
   getChatHistory,
   getChatSessions,
   createChatSession,

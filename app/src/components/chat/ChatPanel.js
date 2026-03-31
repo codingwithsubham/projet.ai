@@ -53,6 +53,7 @@ const ChatPanel = ({ projectId, projects = [], onProjectChange }) => {
   const streamRef = useRef(null);
   const streamBottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const scrollRafRef = useRef(null);
 
   const {
     messages,
@@ -70,13 +71,24 @@ const ChatPanel = ({ projectId, projects = [], onProjectChange }) => {
     newChat,
     deleteSession,
     refreshActiveSession,
+    streamStatus,
   } = useProjectChat(projectId);
 
+  // Throttled auto-scroll via requestAnimationFrame (prevents flicker)
   useEffect(() => {
-    const streamElement = streamRef.current;
-    if (!streamElement) return;
-    streamElement.scrollTop = streamElement.scrollHeight;
-    streamBottomRef.current?.scrollIntoView({ block: "end" });
+    if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = requestAnimationFrame(() => {
+      const el = streamRef.current;
+      if (!el) return;
+      // Always auto-scroll while streaming/sending; otherwise only if near bottom
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 400;
+      if (sending || isNearBottom) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    return () => {
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    };
   }, [messages, sending, loadingHistory, activeSessionId]);
 
   const handleInputChange = useCallback((e) => {
@@ -263,6 +275,7 @@ const ChatPanel = ({ projectId, projects = [], onProjectChange }) => {
                 const isInProgressAssistantMessage =
                   m.role === "assistant" && getIsInProgressMessage(m.content);
                 const isLastMessage = idx === messages.length - 1;
+                const isStreamingMsg = m._id === "__streaming__";
                 if (isInProgressAssistantMessage && !isLastMessage) return null;
 
                 return (
@@ -281,7 +294,7 @@ const ChatPanel = ({ projectId, projects = [], onProjectChange }) => {
                           refreshing={loadingHistory}
                         />
                       ) : m.role === "assistant" ? (
-                        <MarkdownMessage content={m.content || ""} />
+                        <MarkdownMessage content={m.content || ""} streaming={isStreamingMsg} />
                       ) : (
                         <p>{m.content}</p>
                       )}
@@ -290,13 +303,13 @@ const ChatPanel = ({ projectId, projects = [], onProjectChange }) => {
                 );
               })}
 
-              {sending && (
+              {sending && !messages.some((m) => m._id === "__streaming__") && (
                 <div className="chat-message chat-message--assistant chat-message--enter">
                   <div className="chat-avatar chat-avatar--assistant" aria-hidden="true">
                     <span className="chat-avatar__ai-icon">✦</span>
                   </div>
                   <article className="chat-bubble chat-bubble--assistant" aria-live="polite">
-                    <ThinkingLoader />
+                    <ThinkingLoader statusText={streamStatus} />
                   </article>
                 </div>
               )}

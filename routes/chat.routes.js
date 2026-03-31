@@ -7,6 +7,7 @@ router.get("/:projectId/sessions", chatController.sessions);
 router.post("/:projectId/sessions", chatController.createSession);
 router.delete("/:projectId/sessions/:sessionId", chatController.deleteSession);
 router.get("/:projectId/history", chatController.history);
+router.post("/:projectId/stream", chatController.chatStreamToDynamicAgent);
 router.post("/:projectId", chatController.chatToDynamicAgent);
 
 module.exports = router;

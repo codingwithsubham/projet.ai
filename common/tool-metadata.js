@@ -241,7 +241,7 @@ const TOOL_REGISTRY = {
     autoExecute: true,
     description: "Get Jira project details",
   },
-  jira_list_sprints: {
+  jira_get_sprints: {
     category: TOOL_CATEGORY.EXTERNAL_READ,
     operation: OPERATION_TYPE.READ,
     priority: 2,
@@ -264,12 +264,36 @@ const TOOL_REGISTRY = {
     autoExecute: true,
     description: "Get Jira board details",
   },
-  jira_list_boards: {
+  jira_get_boards: {
     category: TOOL_CATEGORY.EXTERNAL_READ,
     operation: OPERATION_TYPE.READ,
     priority: 2,
     autoExecute: true,
     description: "List Jira boards",
+  },
+  jira_get_board_configuration: {
+    category: TOOL_CATEGORY.EXTERNAL_READ,
+    operation: OPERATION_TYPE.READ,
+    priority: 2,
+    autoExecute: true,
+    description: "Get Jira board configuration including columns and estimation",
+  },
+  jira_get_sprint_issues: {
+    category: TOOL_CATEGORY.EXTERNAL_READ,
+    operation: OPERATION_TYPE.READ,
+    priority: 2,
+    autoExecute: true,
+    description: "Get all issues in a sprint",
+    ragFallback: true,
+    ragQueryHint: "sprint issues tasks stories",
+  },
+  jira_move_issues_to_sprint: {
+    category: TOOL_CATEGORY.EXTERNAL_WRITE,
+    operation: OPERATION_TYPE.WRITE,
+    priority: 3,
+    autoExecute: false,
+    requiresConfirmation: true,
+    description: "Move issues to a sprint",
   },
   jira_get_transitions: {
     category: TOOL_CATEGORY.EXTERNAL_READ,
@@ -341,6 +365,38 @@ const TOOL_REGISTRY = {
     autoExecute: false,
     requiresConfirmation: true,
     description: "Create a new Jira sprint",
+  },
+  jira_get_epics: {
+    category: TOOL_CATEGORY.EXTERNAL_READ,
+    operation: OPERATION_TYPE.READ,
+    priority: 2,
+    autoExecute: true,
+    ragFallback: true,
+    description: "List epics for a Jira board",
+  },
+  jira_get_epic_issues: {
+    category: TOOL_CATEGORY.EXTERNAL_READ,
+    operation: OPERATION_TYPE.READ,
+    priority: 2,
+    autoExecute: true,
+    ragFallback: true,
+    description: "List issues under a Jira epic",
+  },
+  jira_move_issues_to_epic: {
+    category: TOOL_CATEGORY.EXTERNAL_WRITE,
+    operation: OPERATION_TYPE.WRITE,
+    priority: 3,
+    autoExecute: false,
+    requiresConfirmation: true,
+    description: "Move/link issues to a Jira epic",
+  },
+  jira_remove_issues_from_epic: {
+    category: TOOL_CATEGORY.EXTERNAL_WRITE,
+    operation: OPERATION_TYPE.WRITE,
+    priority: 3,
+    autoExecute: false,
+    requiresConfirmation: true,
+    description: "Remove issues from a Jira epic",
   },
 
   // === EXTERNAL WRITE TOOLS (Priority 3 - May need confirmation) ===

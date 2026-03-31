@@ -242,9 +242,7 @@ const coreOrchastrator = async ({
       executionDirective,
     ].join("\n");
 
-    // Wrap agent.invoke with a timeout to prevent runaway LLM loops
-    const AGENT_TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS) || 45000;
-    const agentPromise = agent.invoke(
+    const result = await agent.invoke(
       {
         messages: [
           { role: "system", content: enhancedSystemPrompt },
@@ -256,20 +254,6 @@ const coreOrchastrator = async ({
         configurable: { thread_id: String(session._id) },
       },
     );
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Agent timed out")), AGENT_TIMEOUT_MS),
-    );
-    let result;
-    try {
-      result = await Promise.race([agentPromise, timeoutPromise]);
-    } catch (err) {
-      if (err.message === "Agent timed out") {
-        console.warn(`⏱️ Agent timed out after ${AGENT_TIMEOUT_MS}ms`);
-        result = { messages: [{ content: "I'm sorry, this request took too long. Please try rephrasing your question or breaking it into smaller parts." }] };
-      } else {
-        throw err;
-      }
-    }
 
     const parsed = agentParser(result);
     const assistantText = toText(
@@ -423,8 +407,200 @@ const runAgentInBackground = async ({
   }
 };
 
+// ── Streaming orchestrator: yields status + token events via SSE ──
+const coreOrchastratorStream = async function* ({
+  projectId,
+  message,
+  sessionId,
+  agentType = "general",
+  userId,
+  isAdmin = false,
+  requester = null,
+}) {
+  const startTime = Date.now();
+
+  try {
+    const cleanMessage = String(message || "").trim();
+    if (!cleanMessage) throw new Error("message is required");
+
+    yield { type: "status", data: "Fetching project details..." };
+    const project = await getCachedProject(projectId, requester);
+    if (!project) {
+      yield { type: "error", data: "Project not found" };
+      return;
+    }
+
+    yield { type: "status", data: "Analyzing your question..." };
+    const [session, classification] = await Promise.all([
+      getOrCreateSession({ projectId, sessionId, agentType, userId, isAdmin }),
+      classifyIntent({
+        query: cleanMessage,
+        agentType,
+        project,
+        allowLLMFallback: true,
+      }),
+    ]);
+
+    const executionDirective = buildExecutionDirective({
+      recentChatMessages: session?.chats || [],
+      currentUserMessage: cleanMessage,
+    });
+
+    console.log(`📋 [Stream] Intent: ${classification.intent} (${classification.method}, confidence: ${classification.confidence})`);
+
+    yield { type: "status", data: "Checking cached responses..." };
+    const [cachedResult, routingResult] = await Promise.all([
+      getCachedResponse({
+        project,
+        query: cleanMessage,
+        agentType,
+        intent: classification.intent,
+      }),
+      agentType === "dev"
+        ? toolRouterService.routeQuery({ project, query: cleanMessage, agentType })
+        : Promise.resolve(null),
+    ]);
+
+    if (cachedResult) {
+      const cacheDuration = Date.now() - startTime;
+      console.log(`⚡ [Stream] Cache HIT (${cachedResult.source}): ${cacheDuration}ms`);
+
+      session.chats.push({ role: "user", content: cleanMessage });
+      session.chats.push({ role: "assistant", content: cachedResult.response });
+      if (!session.title || session.title === "New Chat") {
+        session.title = buildSessionTitle(cleanMessage);
+      }
+      await session.save();
+
+      yield { type: "cached", data: cachedResult.response };
+      yield {
+        type: "done",
+        data: {
+          sessionId: String(session._id),
+          chats: session.chats,
+          cached: true,
+          duration: cacheDuration,
+        },
+      };
+      return;
+    }
+
+    yield { type: "status", data: "Searching knowledge base..." };
+
+    let agentOptions = {};
+    let routingDirective = "";
+    if (routingResult) {
+      agentOptions = {
+        includeExternalTools: routingResult.useExternalTools,
+        readOnlyMode: false,
+      };
+      routingDirective = toolRouterService.getRoutingDirective(routingResult);
+    }
+
+    const { systemPrompt } = buildSystemPrompt({
+      agentType,
+      message: cleanMessage,
+      project,
+      forceIntent: classification.intent,
+    });
+
+    const enhancedSystemPrompt = routingDirective
+      ? `${systemPrompt}\n\n${routingDirective}`
+      : systemPrompt;
+
+    yield { type: "status", data: "Preparing AI agent..." };
+
+    const [ragContext, agent] = await Promise.all([
+      buildRagContext(project, cleanMessage, {
+        intent: classification.intent,
+        prefetchedResults: routingResult?.ragResult?.rawResults || null,
+      }),
+      createDynamicAgent(project, agentType, agentOptions),
+    ]);
+
+    const userPrompt = [
+      buildUserMessage(ragContext, cleanMessage),
+      "",
+      executionDirective,
+    ].join("\n");
+
+    yield { type: "status", data: "Generating response..." };
+
+    let fullResponse = "";
+
+    try {
+      const eventStream = agent.streamEvents(
+        {
+          messages: [
+            { role: "system", content: enhancedSystemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        },
+        {
+          version: "v2",
+          recursionLimit: resolveGraphRecursionLimit(),
+          configurable: { thread_id: String(session._id) },
+        },
+      );
+
+      for await (const event of eventStream) {
+        if (event.event === "on_chat_model_stream") {
+          const token = event.data?.chunk?.content;
+          if (token && typeof token === "string") {
+            fullResponse += token;
+            yield { type: "token", data: token };
+          }
+        }
+      }
+    } catch (streamErr) {
+      console.error("[Stream] Error:", streamErr.message);
+      if (!fullResponse) {
+        fullResponse =
+          "I'm sorry, an error occurred while generating the response. Please try again.";
+        yield { type: "token", data: fullResponse };
+      }
+    }
+
+    const assistantText = fullResponse || "No response generated.";
+
+    session.chats.push({ role: "user", content: cleanMessage });
+    session.chats.push({ role: "assistant", content: assistantText });
+    if (!session.title || session.title === "New Chat") {
+      session.title = buildSessionTitle(cleanMessage);
+    }
+    await session.save();
+
+    cacheResponse({
+      project,
+      query: cleanMessage,
+      agentType,
+      intent: classification.intent,
+      response: assistantText,
+    }).catch((err) => {
+      console.warn("Cache store failed (non-blocking):", err.message);
+    });
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`✅ [Stream] Agent response completed in ${totalDuration}ms`);
+
+    yield {
+      type: "done",
+      data: {
+        sessionId: String(session._id),
+        chats: session.chats,
+        cached: false,
+        duration: totalDuration,
+      },
+    };
+  } catch (error) {
+    console.error("Error in coreOrchastratorStream:", error);
+    yield { type: "error", data: error.message || "Unknown error" };
+  }
+};
+
 module.exports = {
   coreOrchastrator,
+  coreOrchastratorStream,
   maybeStartAsyncImplementation,
   runAgentInBackground,
 };

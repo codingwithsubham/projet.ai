@@ -17,6 +17,7 @@ const createLlmForProject = (project) => {
     model,
     apiKey,
     maxTokens: 4096,
+    streaming: true,
     configuration: {
       baseURL: process.env.OPENAPI_URL,
       defaultHeaders: {

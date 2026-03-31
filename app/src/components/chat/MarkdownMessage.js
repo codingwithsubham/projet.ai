@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect, memo } from "react";
 import ReactDOM from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -361,10 +361,36 @@ const isMermaidDiagram = (code = "") => {
   });
 };
 
-const MarkdownMessage = ({ content, className = "chat-markdown" }) => {
+/**
+ * During streaming, incomplete pipe-tables trigger costly re-parses.
+ * We detect an in-progress table (last line starts with | but doesn't end
+ * with a complete row) and render the stable portion with ReactMarkdown
+ * while appending the trailing fragment as plain text.
+ */
+const splitStreamingContent = (text) => {
+  if (!text) return { stable: "", tail: "" };
+  const lines = text.split("\n");
+  const lastLine = lines[lines.length - 1] || "";
+  const inPartialTable =
+    lastLine.trimStart().startsWith("|") && !lastLine.trimEnd().endsWith("|");
+  if (inPartialTable && lines.length > 1) {
+    return { stable: lines.slice(0, -1).join("\n"), tail: lastLine };
+  }
+  return { stable: text, tail: "" };
+};
+
+const MarkdownMessage = memo(({ content, className = "chat-markdown", streaming = false }) => {
   const normalizedContent = useMemo(
     () => normalizePipeTableMarkdown(content || ""),
     [content],
+  );
+
+  const { stable, tail } = useMemo(
+    () =>
+      streaming
+        ? splitStreamingContent(normalizedContent)
+        : { stable: normalizedContent, tail: "" },
+    [normalizedContent, streaming],
   );
 
   return (
@@ -408,10 +434,13 @@ const MarkdownMessage = ({ content, className = "chat-markdown" }) => {
           },
         }}
       >
-        {normalizedContent}
+        {stable}
       </ReactMarkdown>
+      {tail && <span className="chat-markdown__streaming-tail">{tail}</span>}
     </div>
   );
-};
+});
+
+MarkdownMessage.displayName = "MarkdownMessage";
 
 export default MarkdownMessage;

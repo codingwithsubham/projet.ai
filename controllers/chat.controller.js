@@ -81,6 +81,54 @@ const sessions = async (req, res) => {
   }
 };
 
+const chatStreamToDynamicAgent = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { message, sessionId } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ success: false, message: "message is required" });
+    }
+
+    // SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const generator = chatService.streamChatMessage({
+      projectId,
+      message,
+      sessionId,
+      requester: req.user,
+    });
+
+    for await (const event of generator) {
+      if (res.writableEnded) break;
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+
+    if (!res.writableEnded) {
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
+  } catch (error) {
+    console.error("Error in chatStreamToDynamicAgent:", error);
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+    try {
+      res.write(`data: ${JSON.stringify({ type: "error", data: error.message })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (_) {}
+  }
+};
+
 const createSession = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -129,4 +177,4 @@ const deleteSession = async (req, res) => {
   }
 };
 
-module.exports = { chatToDynamicAgent, history, sessions, createSession, deleteSession };
+module.exports = { chatToDynamicAgent, chatStreamToDynamicAgent, history, sessions, createSession, deleteSession };
