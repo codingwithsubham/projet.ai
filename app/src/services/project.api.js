@@ -61,3 +61,15 @@ export const getRepositoryApi = async (projectId, repoId) => {
   const response = await apiClient.get(`/projects/${projectId}/repositories/${repoId}`);
   return response.data;
 };
+
+// ============ Board Configuration APIs ============
+
+export const getBoardConfigApi = async (projectId) => {
+  const response = await apiClient.get(`/projects/${projectId}/board-config`);
+  return response.data;
+};
+
+export const saveBoardConfigApi = async (projectId, config) => {
+  const response = await apiClient.patch(`/projects/${projectId}/board-config`, config);
+  return response.data;
+};

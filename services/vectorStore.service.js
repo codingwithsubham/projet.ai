@@ -26,6 +26,48 @@ const DEFAULT_MIN_SIMILARITY_SCORE = 0.5;
 const embeddingsCache = new Map();
 const vectorStoreCache = new Map();
 
+// Per-request embedding cache to avoid duplicate embedQuery calls for the same query text
+// Key: `${projectId}:${queryText}`, Value: embedding vector (float[])
+// Cleared automatically via short TTL (30s) to avoid stale data
+const queryEmbeddingCache = new Map();
+const QUERY_EMBEDDING_TTL_MS = 30000;
+
+/**
+ * Get a cached embedding for a query, or compute and cache it
+ * Prevents the same query text from being embedded 3x in a single request pipeline
+ * 
+ * @param {Object} project - Project object
+ * @param {string} query - Query text 
+ * @returns {Promise<number[]>} Embedding vector
+ */
+const getCachedQueryEmbedding = async (project, query) => {
+  const projectId = String(project._id);
+  const cacheKey = `${projectId}:${query}`;
+  
+  const cached = queryEmbeddingCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.embedding;
+  }
+  
+  const embeddings = createEmbeddingsClient(project);
+  const embedding = await embeddings.embedQuery(query);
+  
+  queryEmbeddingCache.set(cacheKey, {
+    embedding,
+    expiresAt: Date.now() + QUERY_EMBEDDING_TTL_MS,
+  });
+  
+  // Lazy cleanup of expired entries
+  if (queryEmbeddingCache.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of queryEmbeddingCache) {
+      if (now > v.expiresAt) queryEmbeddingCache.delete(k);
+    }
+  }
+  
+  return embedding;
+};
+
 /**
  * Create embeddings client for a project
  * @param {Object} project - Project object with openapikey
@@ -254,6 +296,7 @@ const hybridSearch = async (options) => {
 module.exports = {
   getVectorStore,
   createEmbeddingsClient,
+  getCachedQueryEmbedding,
   addDocuments,
   similaritySearch,
   hybridSearch,

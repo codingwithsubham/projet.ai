@@ -14,7 +14,7 @@ const MAX_CONTEXT_CHUNKS = 6;
  * Maximum character length for combined RAG context
  * Prevents context window overflow
  */
-const MAX_CONTEXT_CHARS = 9000;
+const MAX_CONTEXT_CHARS = 6000;
 
 /**
  * Maximum number of previous conversations to include for context

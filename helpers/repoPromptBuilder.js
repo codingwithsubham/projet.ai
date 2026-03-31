@@ -117,10 +117,57 @@ const getGitHubInfoByIdentifier = (project, identifier) => {
   return null;
 };
 
+/**
+ * Build board/issue-tracker section for system prompt
+ * Adds context about which board platform is configured (GitHub Issues or Jira)
+ * 
+ * @param {Object} project - Project object
+ * @returns {string[]} Array of prompt lines for board section
+ */
+const buildBoardPromptSection = (project) => {
+  const lines = [];
+  const boardConfig = project.boardConfig;
+
+  if (!boardConfig || boardConfig.platform === "none") {
+    lines.push("", "Project Board: No board configured. Work items cannot be tracked via tools.");
+    return lines;
+  }
+
+  if (boardConfig.platform === "jira") {
+    lines.push(
+      "",
+      "Project Board: Jira",
+      `- Jira Project Key: ${boardConfig.jira?.projectKey || "N/A"}`,
+      `- Jira Base URL: ${boardConfig.jira?.baseUrl || "N/A"}`,
+      "- Use Jira tools (jira_search_issues, jira_get_issue, jira_create_issue, etc.) for all board operations.",
+      "- When creating issues, always set the project key to the value above.",
+    );
+    return lines;
+  }
+
+  // Default: GitHub Issues
+  lines.push(
+    "",
+    "Project Board: GitHub Issues",
+    "- Use GitHub issue tools (list_issues, search_issues, create_issue, etc.) for all board operations.",
+  );
+
+  const primaryInfo = getPrimaryGitHubInfo(project);
+  if (primaryInfo) {
+    lines.push(
+      `- Primary GitHub Owner: ${primaryInfo.owner}`,
+      `- Primary GitHub Repo: ${primaryInfo.repo}`,
+    );
+  }
+
+  return lines;
+};
+
 module.exports = {
   parseOwnerRepo,
   formatRepositoryLine,
   buildRepositoryPromptSection,
+  buildBoardPromptSection,
   getPrimaryGitHubInfo,
   getGitHubInfoByIdentifier,
 };

@@ -16,6 +16,7 @@ const createLlmForProject = (project) => {
   return new ChatOpenAI({
     model,
     apiKey,
+    maxTokens: 4096,
     configuration: {
       baseURL: process.env.OPENAPI_URL,
       defaultHeaders: {

@@ -16,6 +16,26 @@ const RepositorySchema = new mongoose.Schema(
   { _id: true, timestamps: true }
 );
 
+/**
+ * Schema for project board configuration (Jira / GitHub Issues)
+ */
+const BoardConfigSchema = new mongoose.Schema(
+  {
+    platform: {
+      type: String,
+      enum: ["github", "jira", "none"],
+      default: "none",
+    },
+    jira: {
+      baseUrl: { type: String, trim: true, default: "" },
+      email: { type: String, trim: true, default: "" },
+      apiToken: { type: String, trim: true, default: "" },
+      projectKey: { type: String, trim: true, default: "" },
+    },
+  },
+  { _id: false }
+);
+
 const ProjectSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -27,6 +47,8 @@ const ProjectSchema = new mongoose.Schema(
     pat_token: { type: String, trim: true, default: "" },
     // New: Multiple repositories support
     repositories: { type: [RepositorySchema], default: [] },
+    // New: Project board configuration (Jira / GitHub Issues)
+    boardConfig: { type: BoardConfigSchema, default: () => ({ platform: "none" }) },
     islangsmithEnabled: { type: Boolean, default: false },
     langsmithapikey: { type: String },
     langsmithProject: { type: String },

@@ -105,6 +105,7 @@ const checkRagSufficiency = async ({ project, query, filter = {} }) => {
       avgScore,
       maxScore,
       duration,
+      rawResults: results, // Return raw results for reuse as RAG context
       topResults: results.slice(0, 3).map(r => ({
         score: r.score,
         source: r.metadata?.source || "unknown",
@@ -273,6 +274,11 @@ const filterToolsByRouting = (tools, routingResult) => {
       return false;
     }
 
+    // Check for Jira-related tools by pattern
+    if (toolName.includes("jira")) {
+      return false;
+    }
+
     return true;
   });
 
@@ -292,7 +298,7 @@ const getRoutingDirective = (routingResult) => {
       return `
 IMPORTANT: The knowledge base contains highly relevant information for this query.
 Use the provided context from the knowledge base to answer.
-Do NOT use external tools (GitHub, etc.) - the indexed data is sufficient and more reliable.
+Do NOT use external tools (GitHub, Jira, etc.) - the indexed data is sufficient and more reliable.
 Provide a direct, comprehensive answer based on the knowledge base content.
 `;
 
@@ -307,14 +313,14 @@ The knowledge base has been indexed from the project sources and should be prefe
     case ROUTING_DECISION.EXTERNAL_ALLOWED:
       return `
 The knowledge base has limited coverage for this query.
-You may use external tools (GitHub, etc.) to gather additional information.
+You may use external tools (GitHub, Jira, etc.) to gather additional information.
 Still check the provided context first - it may contain partial information.
 `;
 
     case ROUTING_DECISION.EXTERNAL_REQUIRED:
       return `
 This query requires real-time or external data.
-Use appropriate external tools (GitHub, etc.) to fetch current information.
+Use appropriate external tools (GitHub, Jira, etc.) to fetch current information.
 The knowledge base may not have the latest data for this type of query.
 `;
 

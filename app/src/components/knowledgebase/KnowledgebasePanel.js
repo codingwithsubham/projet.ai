@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useKnowledgebase } from "../../hooks/useKnowledgebase";
+import { useBoardConfig } from "../../hooks/useBoardConfig";
 import { REPO_TAG_OPTIONS } from "../../constants/repoTags";
 
 const KnowledgebasePanel = ({ projectId }) => {
@@ -60,6 +61,9 @@ const KnowledgebasePanel = ({ projectId }) => {
   // Helper to get sync status for a specific repository
   const getRepoSyncStatus = (repoId) => repoSyncStatuses[repoId] || null;
 
+  // Board configuration
+  const board = useBoardConfig(projectId);
+
   return (
     <div className="kb-panel">
       {/* Tabs */}
@@ -79,6 +83,18 @@ const KnowledgebasePanel = ({ projectId }) => {
         >
           📦 Repositories
           <span className="kb-tab__count">{repositories.length}</span>
+        </button>
+        <button
+          type="button"
+          className={`kb-tab ${activeTab === "board" ? "kb-tab--active" : ""}`}
+          onClick={() => setActiveTab("board")}
+        >
+          📋 Project Board
+          {board.isSaved && (
+            <span className="kb-tab__count">
+              {board.savedConfig?.platform === "jira" ? "Jira" : "GitHub"}
+            </span>
+          )}
         </button>
       </div>
 
@@ -464,6 +480,188 @@ const KnowledgebasePanel = ({ projectId }) => {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Project Board Tab */}
+      {activeTab === "board" && (
+        <div className="kb-tab-body">
+          {board.loading ? (
+            <p className="kb-muted">Loading board configuration...</p>
+          ) : (
+            <>
+              {board.error && (
+                <div className="kb-message kb-message--error">
+                  <span>{board.error}</span>
+                  <button type="button" className="kb-message__close" onClick={board.clearMessages}>✕</button>
+                </div>
+              )}
+              {board.successMsg && (
+                <div className="kb-message kb-message--success">
+                  <span>{board.successMsg}</span>
+                  <button type="button" className="kb-message__close" onClick={board.clearMessages}>✕</button>
+                </div>
+              )}
+
+              <div className="kb-board-config">
+                {/* Platform Selector */}
+                <div className="kb-board-config__field">
+                  <label htmlFor="boardPlatform">Board Platform</label>
+                  <select
+                    id="boardPlatform"
+                    value={board.platform}
+                    onChange={(e) => board.setPlatform(e.target.value)}
+                    disabled={board.isSaved && !board.isEditing}
+                    className="kb-board-config__select"
+                  >
+                    <option value="none">Select a platform...</option>
+                    <option value="github">GitHub Issues</option>
+                    <option value="jira">Jira</option>
+                  </select>
+                </div>
+
+                {/* Jira Configuration */}
+                {board.platform === "jira" && (
+                  <div className="kb-board-config__section">
+                    <h4 className="kb-board-config__section-title">Jira Configuration</h4>
+
+                    <div className="kb-board-config__field">
+                      <label htmlFor="jiraBaseUrl">Jira URL</label>
+                      <input
+                        id="jiraBaseUrl"
+                        type="url"
+                        name="baseUrl"
+                        value={board.jiraForm.baseUrl}
+                        onChange={board.handleJiraChange}
+                        placeholder="https://your-domain.atlassian.net"
+                        disabled={board.isSaved && !board.isEditing}
+                      />
+                    </div>
+
+                    <div className="kb-board-config__field">
+                      <label htmlFor="jiraEmail">Jira Email</label>
+                      <input
+                        id="jiraEmail"
+                        type="email"
+                        name="email"
+                        value={board.jiraForm.email}
+                        onChange={board.handleJiraChange}
+                        placeholder="user@company.com"
+                        disabled={board.isSaved && !board.isEditing}
+                      />
+                    </div>
+
+                    <div className="kb-board-config__field">
+                      <label htmlFor="jiraApiToken">API Token</label>
+                      <input
+                        id="jiraApiToken"
+                        type="password"
+                        name="apiToken"
+                        value={board.jiraForm.apiToken}
+                        onChange={board.handleJiraChange}
+                        placeholder={board.isSaved && !board.isEditing ? "••••••••" : "Paste your Jira API token"}
+                        disabled={board.isSaved && !board.isEditing}
+                      />
+                    </div>
+
+                    <div className="kb-board-config__field">
+                      <label htmlFor="jiraProjectKey">Project Key</label>
+                      <input
+                        id="jiraProjectKey"
+                        type="text"
+                        name="projectKey"
+                        value={board.jiraForm.projectKey}
+                        onChange={board.handleJiraChange}
+                        placeholder="e.g. PROJ"
+                        disabled={board.isSaved && !board.isEditing}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* GitHub Info */}
+                {board.platform === "github" && (
+                  <div className="kb-board-config__section">
+                    <h4 className="kb-board-config__section-title">GitHub Issues</h4>
+                    <p className="kb-muted">
+                      GitHub Issues uses the PAT Token and repositories configured in the <strong>Repositories</strong> tab. 
+                      No additional configuration is needed.
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="kb-board-config__actions">
+                  {!board.isSaved || board.isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        className="projects-btn"
+                        onClick={board.saveConfig}
+                        disabled={board.saving || board.platform === "none"}
+                      >
+                        {board.saving ? "Saving..." : "Save Configuration"}
+                      </button>
+                      {board.isEditing && (
+                        <button
+                          type="button"
+                          className="projects-btn projects-btn--secondary"
+                          onClick={board.cancelEditing}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="projects-btn projects-btn--secondary"
+                      onClick={board.startEditing}
+                    >
+                      Edit Configuration
+                    </button>
+                  )}
+                </div>
+
+                {/* Current Config Display */}
+                {board.isSaved && !board.isEditing && (
+                  <div className="kb-board-config__current">
+                    <h4 className="kb-board-config__section-title">Current Configuration</h4>
+                    <div className="kb-board-config__info-grid">
+                      <div className="kb-board-config__info-row">
+                        <span className="kb-board-config__info-label">Platform</span>
+                        <span className="kb-board-config__info-value">
+                          <span className={`kb-board-config__platform-badge kb-board-config__platform-badge--${board.savedConfig?.platform}`}>
+                            {board.savedConfig?.platform === "jira" ? "Jira" : "GitHub Issues"}
+                          </span>
+                        </span>
+                      </div>
+                      {board.savedConfig?.platform === "jira" && board.savedConfig?.jira && (
+                        <>
+                          <div className="kb-board-config__info-row">
+                            <span className="kb-board-config__info-label">Jira URL</span>
+                            <span className="kb-board-config__info-value">{board.savedConfig.jira.baseUrl}</span>
+                          </div>
+                          <div className="kb-board-config__info-row">
+                            <span className="kb-board-config__info-label">Email</span>
+                            <span className="kb-board-config__info-value">{board.savedConfig.jira.email}</span>
+                          </div>
+                          <div className="kb-board-config__info-row">
+                            <span className="kb-board-config__info-label">Project Key</span>
+                            <span className="kb-board-config__info-value kb-board-config__project-key">{board.savedConfig.jira.projectKey}</span>
+                          </div>
+                          <div className="kb-board-config__info-row">
+                            <span className="kb-board-config__info-label">API Token</span>
+                            <span className="kb-board-config__info-value">••••••••</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

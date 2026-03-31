@@ -302,6 +302,73 @@ const getRepository = async (req, res) => {
   }
 };
 
+// ============ Board Configuration Endpoints ============
+
+const saveBoardConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { platform, jira } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+
+    if (!platform) {
+      return res.status(400).json({ success: false, message: "platform is required" });
+    }
+
+    const project = await projectService.saveBoardConfig(id, { platform, jira });
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    // Mask the Jira API token before returning
+    const boardConfig = project.boardConfig?.toObject ? project.boardConfig.toObject() : { ...project.boardConfig };
+    if (boardConfig?.jira?.apiToken) {
+      boardConfig.jira.apiToken = "••••••••";
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Board configuration saved successfully",
+      data: boardConfig,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to save board configuration",
+    });
+  }
+};
+
+const getBoardConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid project id" });
+    }
+
+    const boardConfig = await projectService.getBoardConfig(id);
+    if (!boardConfig) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    // Mask Jira API token
+    const safeConfig = { ...boardConfig.toObject ? boardConfig.toObject() : boardConfig };
+    if (safeConfig?.jira?.apiToken) {
+      safeConfig.jira.apiToken = "••••••••";
+    }
+
+    return res.status(200).json({ success: true, data: safeConfig });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch board configuration",
+      error: error.message,
+    });
+  }
+};
+
 /**
  * Generate Copilot configuration for a project
  * Returns copilot-instructions.md content and MCP config
@@ -373,4 +440,7 @@ module.exports = {
   getRepository,
   // Copilot configuration
   getCopilotConfig,
+  // Board configuration
+  saveBoardConfig,
+  getBoardConfig,
 };

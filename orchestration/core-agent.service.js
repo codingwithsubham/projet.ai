@@ -25,6 +25,23 @@ const {
   cacheResponse,
 } = require("../services/responseCache.service");
 
+// ── Project object cache (60s TTL) ──
+const projectCache = new Map();
+const PROJECT_CACHE_TTL_MS = 60000;
+
+const getCachedProject = async (projectId, requester) => {
+  const cacheKey = String(projectId);
+  const cached = projectCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.project;
+  }
+  const project = await projectService.getProjectById(projectId, requester);
+  if (project) {
+    projectCache.set(cacheKey, { project, expiresAt: Date.now() + PROJECT_CACHE_TTL_MS });
+  }
+  return project;
+};
+
 const shouldRunAsyncImplementation = ({ agentType, message }) => {
   const normalizedAgentType = String(agentType || "").toLowerCase();
   if (normalizedAgentType !== "dev") return false;
@@ -62,7 +79,7 @@ const maybeStartAsyncImplementation = async ({
     return null;
   }
 
-  const project = await projectService.getProjectById(projectId, requester);
+  const project = await getCachedProject(projectId, requester);
   if (!project) return null;
 
   const session = await getOrCreateSession({
@@ -119,16 +136,19 @@ const coreOrchastrator = async ({
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw new Error("message is required");
 
-    const project = await projectService.getProjectById(projectId, requester);
+    const project = await getCachedProject(projectId, requester);
     if (!project) return null;
 
-    const session = await getOrCreateSession({
-      projectId,
-      sessionId,
-      agentType,
-      userId,
-      isAdmin,
-    });
+    // ── Parallelize: session fetch + intent classification ──
+    const [session, classification] = await Promise.all([
+      getOrCreateSession({ projectId, sessionId, agentType, userId, isAdmin }),
+      classifyIntent({
+        query: cleanMessage,
+        agentType,
+        project,
+        allowLLMFallback: true,
+      }),
+    ]);
     
     // Use session.chats for confirmation check (LangGraph handles full history via checkpointer)
     const executionDirective = buildExecutionDirective({
@@ -136,24 +156,20 @@ const coreOrchastrator = async ({
       currentUserMessage: cleanMessage,
     });
 
-    // Classify intent using hybrid approach (keywords + LLM fallback for low confidence)
-    const classification = await classifyIntent({
-      query: cleanMessage,
-      agentType,
-      project, // Enables LLM fallback if confidence is low
-      allowLLMFallback: true,
-    });
-
     console.log(`📋 Intent: ${classification.intent} (${classification.method}, confidence: ${classification.confidence})`);
     
-    // === CACHE CHECK ===
-    // Check L1 (in-memory) and L2 (PostgreSQL semantic) caches
-    const cachedResult = await getCachedResponse({
-      project,
-      query: cleanMessage,
-      agentType,
-      intent: classification.intent,
-    });
+    // ── Parallelize: cache check + tool routing (for dev) ──
+    const [cachedResult, routingResult] = await Promise.all([
+      getCachedResponse({
+        project,
+        query: cleanMessage,
+        agentType,
+        intent: classification.intent,
+      }),
+      agentType === "dev"
+        ? toolRouterService.routeQuery({ project, query: cleanMessage, agentType })
+        : Promise.resolve(null),
+    ]);
     
     if (cachedResult) {
       const cacheDuration = Date.now() - startTime;
@@ -184,17 +200,10 @@ const coreOrchastrator = async ({
 
     // === RAG-FIRST TOOL ROUTING ===
     // Determine if we should use external tools or rely on RAG
-    let routingResult = null;
     let agentOptions = {};
     let routingDirective = "";
 
-    if (agentType === "dev") {
-      routingResult = await toolRouterService.routeQuery({
-        project,
-        query: cleanMessage,
-        agentType,
-      });
-
+    if (routingResult) {
       // Configure agent based on routing decision
       agentOptions = {
         includeExternalTools: routingResult.useExternalTools,
@@ -218,10 +227,14 @@ const coreOrchastrator = async ({
       ? `${systemPrompt}\n\n${routingDirective}`
       : systemPrompt;
 
-    // Build RAG context with same intent for consistency
-    const ragContext = await buildRagContext(project, cleanMessage, {
-      intent: classification.intent,
-    });
+    // ── Parallelize: RAG context build + agent creation ──
+    const [ragContext, agent] = await Promise.all([
+      buildRagContext(project, cleanMessage, {
+        intent: classification.intent,
+        prefetchedResults: routingResult?.ragResult?.rawResults || null,
+      }),
+      createDynamicAgent(project, agentType, agentOptions),
+    ]);
 
     const userPrompt = [
       buildUserMessage(ragContext, cleanMessage),
@@ -229,8 +242,9 @@ const coreOrchastrator = async ({
       executionDirective,
     ].join("\n");
 
-    const agent = await createDynamicAgent(project, agentType, agentOptions);
-    const result = await agent.invoke(
+    // Wrap agent.invoke with a timeout to prevent runaway LLM loops
+    const AGENT_TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS) || 45000;
+    const agentPromise = agent.invoke(
       {
         messages: [
           { role: "system", content: enhancedSystemPrompt },
@@ -242,6 +256,20 @@ const coreOrchastrator = async ({
         configurable: { thread_id: String(session._id) },
       },
     );
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Agent timed out")), AGENT_TIMEOUT_MS),
+    );
+    let result;
+    try {
+      result = await Promise.race([agentPromise, timeoutPromise]);
+    } catch (err) {
+      if (err.message === "Agent timed out") {
+        console.warn(`⏱️ Agent timed out after ${AGENT_TIMEOUT_MS}ms`);
+        result = { messages: [{ content: "I'm sorry, this request took too long. Please try rephrasing your question or breaking it into smaller parts." }] };
+      } else {
+        throw err;
+      }
+    }
 
     const parsed = agentParser(result);
     const assistantText = toText(

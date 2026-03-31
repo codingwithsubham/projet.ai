@@ -249,6 +249,56 @@ const getRepositoriesByProjectId = async (projectId) => {
   return project.repositories || [];
 };
 
+// ============ Board Configuration Methods ============
+
+/**
+ * Save or update the board configuration for a project
+ * @param {string} projectId - Project ID
+ * @param {Object} config - Board configuration
+ * @param {string} config.platform - "github" | "jira" | "none"
+ * @param {Object} [config.jira] - Jira-specific config
+ * @returns {Promise<Object>} Updated project
+ */
+const saveBoardConfig = async (projectId, config) => {
+  const project = await Project.findById(projectId);
+  if (!project) return null;
+
+  const { platform, jira } = config;
+
+  if (!["github", "jira", "none"].includes(platform)) {
+    throw new Error("Invalid platform. Must be 'github', 'jira', or 'none'.");
+  }
+
+  const boardConfig = { platform };
+
+  if (platform === "jira") {
+    if (!jira?.baseUrl?.trim() || !jira?.email?.trim() || !jira?.apiToken?.trim() || !jira?.projectKey?.trim()) {
+      throw new Error("Jira configuration requires baseUrl, email, apiToken, and projectKey.");
+    }
+    boardConfig.jira = {
+      baseUrl: jira.baseUrl.trim().replace(/\/+$/, ""),
+      email: jira.email.trim(),
+      apiToken: jira.apiToken.trim(),
+      projectKey: jira.projectKey.trim().toUpperCase(),
+    };
+  }
+
+  project.boardConfig = boardConfig;
+  await project.save();
+  return project;
+};
+
+/**
+ * Get board configuration for a project
+ * @param {string} projectId - Project ID
+ * @returns {Promise<Object|null>} Board configuration
+ */
+const getBoardConfig = async (projectId) => {
+  const project = await Project.findById(projectId).select("boardConfig pat_token");
+  if (!project) return null;
+  return project.boardConfig || { platform: "none" };
+};
+
 module.exports = {
   createProject,
   getAllProjects,
@@ -263,4 +313,7 @@ module.exports = {
   deleteRepository,
   getRepositoryById,
   getRepositoriesByProjectId,
+  // Board configuration
+  saveBoardConfig,
+  getBoardConfig,
 };

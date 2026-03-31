@@ -1,14 +1,58 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { useProjectChat } from "../../hooks/useProjectChat";
-import PromptLibrary from "./PromptLibrary";
 import ImplementationProgressCard, {
   getIsInProgressMessage,
 } from "./ImplementationProgressCard";
 import MarkdownMessage from "./MarkdownMessage";
+import ThinkingLoader from "./ThinkingLoader";
 
-const ChatPanel = ({ projectId }) => {
+const SendIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13" />
+    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+);
+
+const SidebarIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="9" y1="3" x2="9" y2="21" />
+  </svg>
+);
+
+const NewChatIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+);
+
+const formatSessionDate = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+const groupSessionsByDate = (sessions) => {
+  const groups = {};
+  sessions.forEach((s) => {
+    const label = formatSessionDate(s.updatedAt || s.createdAt);
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(s);
+  });
+  return groups;
+};
+
+const ChatPanel = ({ projectId, projects = [], onProjectChange }) => {
   const streamRef = useRef(null);
   const streamBottomRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const {
     messages,
@@ -26,8 +70,6 @@ const ChatPanel = ({ projectId }) => {
     newChat,
     deleteSession,
     refreshActiveSession,
-    showPromptLibrary,
-    setShowPromptLibrary,
   } = useProjectChat(projectId);
 
   useEffect(() => {
@@ -37,15 +79,28 @@ const ChatPanel = ({ projectId }) => {
     streamBottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, sending, loadingHistory, activeSessionId]);
 
+  const handleInputChange = useCallback((e) => {
+    setInput(e.target.value);
+    const ta = e.target;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 150) + "px";
+  }, [setInput]);
+
   const onSubmit = async (e) => {
     e.preventDefault();
     await sendMessage();
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   };
 
   const onTextareaKeyDown = async (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       await sendMessage();
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
     }
   };
 
@@ -56,127 +111,202 @@ const ChatPanel = ({ projectId }) => {
     }
   };
 
+  const groupedSessions = groupSessionsByDate(sessions);
+  const hasMessages = messages.length > 0;
+  const selectedProject = projects.find((p) => p._id === projectId);
+
+  // Input bar component (shared between hero & chat views)
+  const inputBar = (
+    <form className="chat-input-row" onSubmit={onSubmit}>
+      <div className="chat-input-wrap">
+        <div className="chat-input-box">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={onTextareaKeyDown}
+            placeholder="Ask anything..."
+            rows={1}
+            disabled={!projectId}
+          />
+          <div className="chat-input-actions">
+            <div className="chat-input-project-toggle">
+              <select
+                value={projectId || ""}
+                onChange={(e) => onProjectChange?.(e.target.value)}
+              >
+                {projects.map((p) => (
+                  <option key={p._id} value={p._id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="chat-send-btn" disabled={sending || !input.trim() || !projectId}>
+              {sending ? <span className="chat-send-btn__spinner" /> : <SendIcon />}
+            </button>
+          </div>
+        </div>
+        <span className="chat-input-hint">Shift + Enter for new line</span>
+      </div>
+    </form>
+  );
+
   return (
     <div className={`chat-layout ${historyOpen ? "chat-layout--open" : ""}`}>
-      <aside className={`chat-history ${historyOpen ? "is-open" : ""}`}>
-        <div className="chat-history__head">
-          <h3>Chats</h3>
-          <button type="button" className="projects-btn projects-btn--tiny" onClick={newChat}>
-            ✍🏻 New Chat
+      {/* ─── Sidebar ─── */}
+      <aside className={`chat-sidebar ${historyOpen ? "chat-sidebar--open" : ""}`}>
+        <div className="chat-sidebar__head">
+          <button
+            type="button"
+            className="chat-sidebar__toggle"
+            onClick={() => setHistoryOpen(false)}
+            title="Close sidebar"
+          >
+            <SidebarIcon />
+          </button>
+          <button type="button" className="chat-sidebar__new" onClick={newChat} title="New chat">
+            <NewChatIcon />
           </button>
         </div>
 
-        <div className="chat-history__list">
+        <div className="chat-sidebar__list">
           {sessions.length ? (
-            sessions.map((s) => (
-              <button
-                key={s._id}
-                type="button"
-                className={`chat-history__item ${activeSessionId === s._id ? "chat-history__item--active" : ""}`}
-                onClick={() => openSession(s._id)}
-              >
-                <span className="chat-history__item-text">{s.title || "New Chat"}</span>
-                <button
-                  type="button"
-                  className="chat-history__delete-btn"
-                  onClick={(e) => handleDeleteSession(e, s._id)}
-                  title="Delete chat"
-                  aria-label="Delete chat"
-                >
-                  ✖
-                </button>
-              </button>
+            Object.entries(groupedSessions).map(([label, group]) => (
+              <div key={label} className="chat-sidebar__group">
+                <div className="chat-sidebar__group-label">{label}</div>
+                {group.map((s) => (
+                  <button
+                    key={s._id}
+                    type="button"
+                    className={`chat-sidebar__item ${activeSessionId === s._id ? "chat-sidebar__item--active" : ""}`}
+                    onClick={() => openSession(s._id)}
+                  >
+                    <span className="chat-sidebar__item-text">{s.title || "New Chat"}</span>
+                    <button
+                      type="button"
+                      className="chat-sidebar__delete"
+                      onClick={(e) => handleDeleteSession(e, s._id)}
+                      title="Delete chat"
+                      aria-label="Delete chat"
+                    >
+                      ✕
+                    </button>
+                  </button>
+                ))}
+              </div>
             ))
           ) : (
-            <p className="kb-muted">No chats yet.</p>
+            <p className="chat-sidebar__empty">No chats yet</p>
           )}
         </div>
       </aside>
 
+      {/* ─── Main ─── */}
       <section className="chat-main">
-        <div className="chat-main__head">
-          <button
-            type="button"
-            className="projects-btn projects-btn--secondary projects-btn--tiny"
-            onClick={() => setHistoryOpen((v) => !v)}
-          >
-            {historyOpen ? "Collapse History" : "Show History"}
-          </button>
+        {/* Top bar — only sidebar toggle + project name */}
+        <div className="chat-topbar">
+          {!historyOpen && (
+            <button
+              type="button"
+              className="chat-topbar__toggle"
+              onClick={() => setHistoryOpen(true)}
+              title="Open sidebar"
+            >
+              <SidebarIcon />
+            </button>
+          )}
+          {!historyOpen && (
+            <button type="button" className="chat-topbar__new" onClick={newChat} title="New chat">
+              <NewChatIcon />
+            </button>
+          )}
+          <span className="chat-topbar__project-name">
+            {selectedProject?.name || ""}
+          </span>
         </div>
 
-        <div className="chat-stream" ref={streamRef}>
-          {loadingHistory ? <p className="kb-muted">Loading history...</p> : null}
-          {error ? <p className="projects-error">{error}</p> : null}
-
-          {messages.map((m, idx) => {
-            const isInProgressAssistantMessage =
-              m.role === "assistant" && getIsInProgressMessage(m.content);
-            const isLastMessage = idx === messages.length - 1;
-
-            if (isInProgressAssistantMessage && !isLastMessage) {
-              return null;
-            }
-
-            return (
-            <div key={m._id || idx} className={`chat-message chat-message--${m.role}`}>
-              <div className={`chat-avatar chat-avatar--${m.role}`} aria-hidden="true">
-                {m.role === "assistant" ? "🤖" : "🧑"}
+        {/* Empty / Hero state (no messages) */}
+        {!hasMessages && !loadingHistory ? (
+          <div className="chat-hero-center">
+            <div className="chat-empty-hero">
+              <div className="chat-empty-hero__icon">
+                <span className="chat-empty-hero__sparkle">✦</span>
               </div>
-              <article className={`chat-bubble chat-bubble--${m.role}`}>
-                {isInProgressAssistantMessage ? (
-                  <ImplementationProgressCard
-                    content={m.content || ""}
-                    onRefresh={refreshActiveSession}
-                    refreshing={loadingHistory}
-                  />
-                ) : m.role === "assistant" ? (
-                  <MarkdownMessage content={m.content || ""} />
-                ) : (
-                  <p>{m.content}</p>
-                )}
-              </article>
-            </div>
-            );
-          })}
-
-          {sending ? (
-            <div className="chat-message chat-message--assistant">
-              <div className="chat-avatar chat-avatar--assistant" aria-hidden="true">
-                🤖
+              <h2 className="chat-empty-hero__title">Pro-jet.ai Agent</h2>
+              <p className="chat-empty-hero__subtitle">
+                Your AI project manager. Ask about Jira, documents, presentations, or your knowledge base.
+              </p>
+              <div className="chat-empty-hero__capabilities">
+                <div className="chat-empty-hero__cap-item">
+                  <span>📋</span><span>Jira &amp; Backlog</span>
+                </div>
+                <div className="chat-empty-hero__cap-item">
+                  <span>📄</span><span>Documents</span>
+                </div>
+                <div className="chat-empty-hero__cap-item">
+                  <span>📊</span><span>Presentations</span>
+                </div>
+                <div className="chat-empty-hero__cap-item">
+                  <span>🧠</span><span>Knowledge Base</span>
+                </div>
               </div>
-              <article
-                className="chat-bubble chat-bubble--assistant chat-bubble--loading"
-                aria-live="polite"
-                aria-label="Assistant is typing"
-              >
-                <span />
-                <span />
-                <span />
-              </article>
             </div>
-          ) : null}
+            {inputBar}
+          </div>
+        ) : (
+          <>
+            {/* Messages stream */}
+            <div className="chat-stream" ref={streamRef}>
+              {loadingHistory ? <p className="kb-muted">Loading history...</p> : null}
+              {error ? <p className="projects-error">{error}</p> : null}
 
-          <div ref={streamBottomRef} />
-        </div>
-        {showPromptLibrary && <PromptLibrary onSelect={(prompt) => {
-          setInput(prompt);
-          setShowPromptLibrary(false);
-        }} />}
-        <form className="chat-input-row" onSubmit={onSubmit}>
-          <button type="button" className="icon-btn" onClick={() => setShowPromptLibrary((v) => !v)}>
-           📖
-          </button>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onTextareaKeyDown}
-            placeholder="Ask the PM agent..."
-            rows={3}
-          />
-          <button type="submit" className="projects-btn" disabled={sending}>
-            {sending ? "Sending..." : "Send"}
-          </button>
-        </form>
+              {messages.map((m, idx) => {
+                const isInProgressAssistantMessage =
+                  m.role === "assistant" && getIsInProgressMessage(m.content);
+                const isLastMessage = idx === messages.length - 1;
+                if (isInProgressAssistantMessage && !isLastMessage) return null;
+
+                return (
+                  <div key={m._id || idx} className={`chat-message chat-message--${m.role} chat-message--enter`}>
+                    <div className={`chat-avatar chat-avatar--${m.role}`} aria-hidden="true">
+                      {m.role === "assistant"
+                        ? <span className="chat-avatar__ai-icon">✦</span>
+                        : <span className="chat-avatar__user-icon">U</span>
+                      }
+                    </div>
+                    <article className={`chat-bubble chat-bubble--${m.role}`}>
+                      {isInProgressAssistantMessage ? (
+                        <ImplementationProgressCard
+                          content={m.content || ""}
+                          onRefresh={refreshActiveSession}
+                          refreshing={loadingHistory}
+                        />
+                      ) : m.role === "assistant" ? (
+                        <MarkdownMessage content={m.content || ""} />
+                      ) : (
+                        <p>{m.content}</p>
+                      )}
+                    </article>
+                  </div>
+                );
+              })}
+
+              {sending && (
+                <div className="chat-message chat-message--assistant chat-message--enter">
+                  <div className="chat-avatar chat-avatar--assistant" aria-hidden="true">
+                    <span className="chat-avatar__ai-icon">✦</span>
+                  </div>
+                  <article className="chat-bubble chat-bubble--assistant" aria-live="polite">
+                    <ThinkingLoader />
+                  </article>
+                </div>
+              )}
+
+              <div ref={streamBottomRef} />
+            </div>
+
+            {inputBar}
+          </>
+        )}
       </section>
     </div>
   );

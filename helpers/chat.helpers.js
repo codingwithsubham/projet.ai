@@ -51,36 +51,44 @@ const buildRagContext = async (project, query, options = {}) => {
     intent = RAG_INTENTS.GENERAL, 
     repoId = null, 
     repoTag = null,
-    autoDetectRepo = true 
+    autoDetectRepo = true,
+    prefetchedResults = null,
   } = options;
 
   try {
-    // Build metadata filter using modular utility
-    const { filter, detectedTags } = buildRepoFilter({
-      query,
-      repoId,
-      repoTag,
-      autoDetect: autoDetectRepo,
-      repositories: project.repositories,
-    });
+    let results;
 
-    if (detectedTags.length > 0) {
-      console.log(`🎯 Auto-detected repo tags: ${detectedTags.join(", ")}`);
+    if (prefetchedResults && prefetchedResults.length > 0) {
+      console.log(`♻️ Reusing ${prefetchedResults.length} pre-fetched RAG chunks`);
+      results = prefetchedResults;
+    } else {
+      // Build metadata filter using modular utility
+      const { filter, detectedTags } = buildRepoFilter({
+        query,
+        repoId,
+        repoTag,
+        autoDetect: autoDetectRepo,
+        repositories: project.repositories,
+      });
+
+      if (detectedTags.length > 0) {
+        console.log(`🎯 Auto-detected repo tags: ${detectedTags.join(", ")}`);
+      }
+
+      const minScore = getThresholdForIntent(intent);
+      const topK = getChunksForIntent(intent);
+      const retrievalMode = getRetrievalModeForIntent(intent);
+      console.log(`📊 Using ${intent} intent: threshold=${minScore}, chunks=${topK}, mode=${retrievalMode}`);
+
+      results = await queryVectors({
+        project,
+        query,
+        topK,
+        filter,
+        minScore,
+        retrievalMode,
+      });
     }
-
-    const minScore = getThresholdForIntent(intent);
-    const topK = getChunksForIntent(intent);
-    const retrievalMode = getRetrievalModeForIntent(intent);
-    console.log(`📊 Using ${intent} intent: threshold=${minScore}, chunks=${topK}, mode=${retrievalMode}`);
-
-    const results = await queryVectors({
-      project,
-      query,
-      topK,
-      filter,
-      minScore,
-      retrievalMode,
-    });
 
     if (!results.length) {
       console.log("⚠️ No RAG context found");

@@ -23,7 +23,7 @@
 const crypto = require("crypto");
 const { getPool } = require("../config/pgvector");
 const { getSchemaName, getTableName } = require("./schemaManager.service");
-const { createEmbeddingsClient } = require("./vectorStore.service");
+const { createEmbeddingsClient, getCachedQueryEmbedding } = require("./vectorStore.service");
 const {
   L1_CACHE_CONFIG,
   L2_CACHE_CONFIG,
@@ -265,8 +265,7 @@ const checkL2Cache = async ({ project, query, agentType, intent }) => {
     }
     
     // Fall back to semantic similarity search
-    const embeddings = createEmbeddingsClient(project);
-    const queryEmbedding = await embeddings.embedQuery(query);
+    const queryEmbedding = await getCachedQueryEmbedding(project, query);
     const embeddingStr = `[${queryEmbedding.join(",")}]`;
     
     const semanticMatch = await pool.query(
@@ -336,8 +335,7 @@ const storeInL2Cache = async ({
     const queryHash = generateCacheKey(query, agentType, intent);
     
     // Generate query embedding
-    const embeddings = createEmbeddingsClient(project);
-    const queryEmbedding = await embeddings.embedQuery(query);
+    const queryEmbedding = await getCachedQueryEmbedding(project, query);
     const embeddingStr = `[${queryEmbedding.join(",")}]`;
     
     // Calculate expiration time based on intent

@@ -1,23 +1,23 @@
-const { MultiServerMCPClient } = require("@langchain/mcp-adapters");
 const { createMarkdownReportTableTool } = require("./commonTools");
+const { buildGithubPmTools } = require("./githubTools");
+const { buildJiraPmTools } = require("./jiraTools");
 
 const buildPmTools = async (project) => {
-  const mcpClient = new MultiServerMCPClient({
-    github: {
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-github"],
-      env: {
-        GITHUB_PERSONAL_ACCESS_TOKEN: project.pat_token,
-      },
-      transport: "stdio",
-    },
-  });
+  const boardPlatform = project.boardConfig?.platform || "github";
+  const excludeIssueTools = boardPlatform === "jira";
 
-  // Initialize tools (e.g., GitHub) and shared feedback tool for PM agent
-  const githubTool = await mcpClient.getTools();
+  // Load GitHub tools (code tools always, issue tools only if GitHub is the board)
+  const githubTools = await buildGithubPmTools(project, { excludeIssueTools });
+
+  // Load Jira board tools when Jira is the configured platform
+  let boardTools = [];
+  if (boardPlatform === "jira") {
+    boardTools = await buildJiraPmTools(project);
+  }
+
   const markdownReportTableTool = createMarkdownReportTableTool();
 
-  return [...githubTool, markdownReportTableTool];
+  return [...githubTools, ...boardTools, markdownReportTableTool];
 };
 
 module.exports = { buildPmTools };

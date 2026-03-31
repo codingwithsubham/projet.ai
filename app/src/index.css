@@ -84,6 +84,6 @@ code {
 
 @media (max-width: 1280px) {
 .chat-stream {
-  max-height: 40vh;
+  /* flex: 1 handles sizing now */
 }
 }

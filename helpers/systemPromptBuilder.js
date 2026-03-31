@@ -3,7 +3,8 @@ const { RAG_INTENTS } = require("../common/rag-constants");
 const { classifyIntentSync } = require("./intentClassifier");
 const { 
   parseOwnerRepo, 
-  buildRepositoryPromptSection 
+  buildRepositoryPromptSection,
+  buildBoardPromptSection,
 } = require("./repoPromptBuilder");
 
 /**
@@ -21,10 +22,23 @@ const resolveIntent = ({ agentType, message, forceIntent = null }) => {
   return intent;
 };
 
-const selectRuleLines = ({ agentType, intent }) => {
+const selectRuleLines = ({ agentType, intent, boardPlatform }) => {
   const normalizedAgentType = String(agentType || "").toLowerCase();
   const sharedBase = RULE_PACKS.shared.base;
   const sharedToolCycle = RULE_PACKS.shared.toolCycle;
+
+  // Select platform-specific planning rules
+  const getPlanningRules = () => {
+    const base = RULE_PACKS.pm.planningRules;
+    if (boardPlatform === "jira") {
+      return [...base, ...RULE_PACKS.pm.planningRules_jira];
+    }
+    if (boardPlatform === "github") {
+      return [...base, ...RULE_PACKS.pm.planningRules_github];
+    }
+    // Default to github rules for backward compatibility
+    return [...base, ...RULE_PACKS.pm.planningRules_github];
+  };
 
   if (normalizedAgentType === "general") {
     const generalLines = [
@@ -57,7 +71,7 @@ const selectRuleLines = ({ agentType, intent }) => {
       return [
         ...pmLines,
         ...RULE_PACKS.pm.writeGuardrails,
-        ...RULE_PACKS.pm.planningRules,
+        ...getPlanningRules(),
       ];
     }
 
@@ -94,17 +108,20 @@ const buildSystemPrompt = ({
     forceIntent,
   });
 
-  const lines = selectRuleLines({ agentType: resolvedAgentType, intent });
+  const boardPlatform = project.boardConfig?.platform || "github";
+
+  const lines = selectRuleLines({ agentType: resolvedAgentType, intent, boardPlatform });
   
   // Build system prompt with project info and repository section
   const systemPromptParts = [
     ...lines,
     `- Project Name: ${project.name || "Untitled Project"}`,
     ...buildRepositoryPromptSection(project),
+    ...buildBoardPromptSection(project),
   ];
 
   return {
-    systemPrompt: systemPromptParts.join(" "),
+    systemPrompt: systemPromptParts.join("\n"),
     promptMeta: {
       agentType: resolvedAgentType,
       intent,
