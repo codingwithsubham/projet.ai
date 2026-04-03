@@ -14,7 +14,16 @@ const { z } = require("zod");
 const { createAuthToken } = require("../helpers/tokenHelper");
 
 // API base URL - use environment variable or default to localhost
-const API_BASE_URL = process.env.HUB_BASE_URL || "http://localhost:5000/api";
+// Routes are mounted at /api/v1 in app.js
+const getApiBaseUrl = () => {
+  const baseUrl = process.env.HUB_BASE_URL || "http://localhost:5000";
+  // Ensure we always use the /api/v1 path
+  if (baseUrl.endsWith("/api/v1")) return baseUrl;
+  if (baseUrl.endsWith("/api/v1/")) return baseUrl.slice(0, -1);
+  if (baseUrl.endsWith("/")) return `${baseUrl}api/v1`;
+  return `${baseUrl}/api/v1`;
+};
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Generate auth token from requester object
@@ -50,7 +59,10 @@ const generateTokenFromRequester = (requester) => {
  * @returns {Promise<Object>} Response data
  */
 const makeApiRequest = async (endpoint, body, authToken) => {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const fullUrl = `${API_BASE_URL}${endpoint}`;
+  console.log(`📤 Delegation API call: POST ${fullUrl}`);
+  
+  const response = await fetch(fullUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -59,7 +71,24 @@ const makeApiRequest = async (endpoint, body, authToken) => {
     body: JSON.stringify(body),
   });
 
-  const data = await response.json();
+  // Read response as text first to handle non-JSON responses
+  const responseText = await response.text();
+  
+  // Check if response is JSON
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    console.error(`❌ Delegation API returned non-JSON response (${response.status}):`, responseText.substring(0, 200));
+    throw new Error(`API endpoint ${endpoint} returned non-JSON response (status ${response.status}). Check if the server is running and the route exists.`);
+  }
+
+  // Parse JSON
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error(`❌ Failed to parse JSON response:`, responseText.substring(0, 200));
+    throw new Error(`Failed to parse API response as JSON: ${parseError.message}`);
+  }
 
   if (!response.ok) {
     // Handle subscription required error (403 from requireSubscription middleware)

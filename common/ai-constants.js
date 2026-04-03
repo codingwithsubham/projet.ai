@@ -173,6 +173,38 @@ const RULE_PACKS = {
       "When analyze_sprint_health returns Yellow or Red, proactively call predict_sprint_completion and detect_scope_creep for deeper analysis.",
     ],
 
+    // Delegation rules — when to route to Document and Presentation agents
+    delegationRules: [
+      "=== AGENT DELEGATION TOOLS ===",
+      "You have access to delegation tools: delegate_to_document_agent, delegate_to_presentation_agent.",
+      "These tools route work to specialized agents for document and presentation generation. Use them when the user wants formal output files.",
+      "",
+      "=== WHEN TO USE delegate_to_document_agent ===",
+      "Use this tool when the user explicitly requests document creation, such as:",
+      "- 'Create a document from this', 'Generate a document', 'Make a document'",
+      "- 'Export this report to a document', 'Export as document', 'Prepare a document'",
+      "- 'Create a formal document', 'Save as document', 'Document out of this'",
+      "- 'Export the report summary into a document'",
+      "IMPORTANT: First gather all needed data using your analytics/report tools, then pass the complete content to delegate_to_document_agent.",
+      "Do NOT ask clarifying questions when the user requests document export. Simply gather the context from the conversation and delegate immediately.",
+      "",
+      "=== WHEN TO USE delegate_to_presentation_agent ===",
+      "Use this tool when the user explicitly requests presentation creation, such as:",
+      "- 'Create a presentation', 'Generate slides', 'Make a PPT'",
+      "- 'Create a PowerPoint', 'Export as presentation', 'Prepare slides'",
+      "- 'Create slides from this', 'Turn this into a presentation'",
+      "IMPORTANT: First gather all needed data, then pass the complete content to delegate_to_presentation_agent.",
+      "Do NOT ask clarifying questions when the user requests presentation creation. Gather context and delegate immediately.",
+      "",
+      "=== DELEGATION WORKFLOW ===",
+      "1. When user asks to create a document/presentation, identify what content they want exported.",
+      "2. If data was already gathered in the conversation (e.g., sprint report, summary), use that directly.",
+      "3. If additional data is needed, gather it using appropriate tools first.",
+      "4. Call the delegation tool with the complete content - the delegated agent will format it professionally.",
+      "5. Confirm to the user that the document/presentation is being generated asynchronously.",
+      "Do NOT offer format options or ask for metadata - use sensible defaults and proceed.",
+    ],
+
     // Capacity & utilization rules — resource management tools
     capacityRules: [
       "=== CAPACITY & UTILIZATION TOOLS ===",
@@ -244,6 +276,7 @@ const PM_SYSTEM_PROMPT = flatten(
   RULE_PACKS.pm.reportingRules,
   RULE_PACKS.pm.riskRules,
   RULE_PACKS.pm.capacityRules,
+  RULE_PACKS.pm.delegationRules,
 );
 
 const GENERAL_SYSTEM_PROMPT = flatten(

@@ -103,6 +103,52 @@ const INTENT_KEYWORDS = {
     "can you": 0.3,
     "please": 0.2,
   },
+
+  [RAG_INTENTS.DOCGEN]: {
+    // Strong signals (0.8-1.0) - explicit document creation
+    "create a document": 0.95,
+    "generate a document": 0.95,
+    "make a document": 0.95,
+    "create document": 0.95,
+    "generate document": 0.95,
+    "export to document": 0.95,
+    "export as document": 0.95,
+    "prepare a document": 0.95,
+    "create a report document": 0.95,
+    "export the report": 0.9,
+    "export this report": 0.9,
+    "export report": 0.9,
+    "document out of": 0.9,
+    "document from this": 0.9,
+    "save as document": 0.9,
+    "convert to document": 0.9,
+    "formal document": 0.9,
+    
+    // Presentation signals
+    "create a presentation": 0.95,
+    "generate a presentation": 0.95,
+    "make a presentation": 0.95,
+    "create presentation": 0.95,
+    "generate presentation": 0.95,
+    "prepare a presentation": 0.95,
+    "create slides": 0.9,
+    "make slides": 0.9,
+    "generate slides": 0.9,
+    "create ppt": 0.95,
+    "generate ppt": 0.95,
+    "make ppt": 0.95,
+    "export as ppt": 0.9,
+    "export to ppt": 0.9,
+    "powerpoint": 0.85,
+    
+    // Medium signals (0.5-0.7)
+    "export": 0.6,
+    "download as": 0.65,
+    "save to file": 0.6,
+    "pdf": 0.55,
+    "docx": 0.7,
+    "markdown file": 0.65,
+  },
 };
 
 /**
