@@ -19,6 +19,36 @@ const {
 const { getTopicImage } = require("./pptxBuilder");
 
 // ============================================
+// LLM RETRY HELPER
+// ============================================
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const invokeWithRetry = async (llm, messages, retries = MAX_RETRIES) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await llm.invoke(messages);
+    } catch (error) {
+      const isRetryable = error.message?.includes('Abort') || 
+                          error.message?.includes('timeout') ||
+                          error.message?.includes('ECONNRESET') ||
+                          error.code === 'ECONNRESET';
+      
+      if (isRetryable && attempt < retries) {
+        console.warn(`   ⚠️ LLM call failed (attempt ${attempt}/${retries}): ${error.message}`);
+        console.log(`   🔄 Retrying in ${RETRY_DELAY_MS * attempt}ms...`);
+        await sleep(RETRY_DELAY_MS * attempt);
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
+// ============================================
 // QUERY EXTRACTION HELPERS
 // ============================================
 
@@ -92,7 +122,7 @@ const generateSlideHtml = async ({
     new HumanMessage(buildSlideUserPrompt(contentInstruction)),
   ];
 
-  const response = await llm.invoke(messages);
+  const response = await invokeWithRetry(llm, messages);
   let html = cleanHtmlResponse(response.content || "");
 
   // Ensure valid section wrapper

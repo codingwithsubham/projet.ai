@@ -5,13 +5,21 @@ const { processDocumentRequest } = require("../z-agents/docAgent");
 
 const createDocument = async (req, res) => {
   try {
-    const { name, prompt, projectId, description } = req.body;
+    const { name, prompt, projectId, description, contentProvided, providedContent } = req.body;
     const userId = req.user.id;
 
     if (!name || !prompt || !projectId) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: name, prompt, projectId",
+      });
+    }
+
+    // If contentProvided mode, providedContent is required
+    if (contentProvided && !providedContent) {
+      return res.status(400).json({
+        success: false,
+        message: "providedContent is required when contentProvided is true",
       });
     }
 
@@ -41,11 +49,15 @@ const createDocument = async (req, res) => {
       statusMessage: "Starting document generation...",
     });
 
+    // Start async document generation
+    // If contentProvided=true, pass delegated mode to skip RAG
     processDocumentRequest({
       documentId: document._id,
       name,
       prompt,
       project,
+      delegated: !!contentProvided,
+      delegatedContent: providedContent || "",
     }).catch((error) => {
       console.error(`❌ Document ${document._id} error:`, error.message);
     });

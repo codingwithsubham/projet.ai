@@ -24,10 +24,14 @@ const {
   createWorkloadDistributionTool,
   createTeamUtilizationTool,
 } = require("../tools/capacityTools");
+const {
+  createDelegateToDocumentAgentTool,
+  createDelegateToPresentationAgentTool,
+} = require("../tools/delegationTools");
 const { guardToolsForSingleExecution } = require("../helpers/toolExecutionGuard");
 const { checkpointer } = require("../orchestration/checkpointer.service");
 
-const dynamicPmAgent = async (project) => {
+const dynamicPmAgent = async (project, requester = null) => {
   const llm = createLlmForProject(project);
   const tools = await buildPmTools(project);
   const happyFeedbackTool = createStoreHappyFeedbackTool(project);
@@ -54,6 +58,9 @@ const dynamicPmAgent = async (project) => {
   // Capacity & utilization tools
   const workloadTool = createWorkloadDistributionTool(project);
   const utilizationTool = createTeamUtilizationTool(project);
+  // Agent delegation tools - use requester to generate tokens on-demand for API calls
+  const delegateDocTool = createDelegateToDocumentAgentTool(project, requester);
+  const delegatePptTool = createDelegateToPresentationAgentTool(project, requester);
   
   const guardedTools = guardToolsForSingleExecution([
     ...tools,
@@ -76,6 +83,9 @@ const dynamicPmAgent = async (project) => {
     dependencyRiskTool,
     workloadTool,
     utilizationTool,
+    // Delegation tools
+    delegateDocTool,
+    delegatePptTool,
   ]);
 
   const agent = createReactAgent({

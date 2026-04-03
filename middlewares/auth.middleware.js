@@ -34,6 +34,7 @@ const authenticateRequest = async (req, res, next) => {
     }
 
     req.user = authResult.user;
+    req.userId = authResult.user._id || authResult.user.id;
     req.auth = authResult.payload;
     return next();
   } catch (error) {
@@ -45,4 +46,30 @@ const authenticateRequest = async (req, res, next) => {
   }
 };
 
-module.exports = { authenticateRequest };
+/**
+ * Middleware to require admin role
+ */
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required"
+    });
+  }
+  return next();
+};
+
+/**
+ * Middleware to require PM or admin role
+ */
+const requirePMOrAdmin = (req, res, next) => {
+  if (!req.user || !['PM', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({
+      success: false,
+      message: "PM or Admin access required"
+    });
+  }
+  return next();
+};
+
+module.exports = { authenticateRequest, requireAdmin, requirePMOrAdmin };

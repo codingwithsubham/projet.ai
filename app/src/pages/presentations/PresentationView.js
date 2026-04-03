@@ -19,15 +19,10 @@ const PresentationView = () => {
   const [downloadingPPTX, setDownloadingPPTX] = useState(false);
 
   useEffect(() => {
-    if (!isPM && !isAdmin) {
-      navigate("/");
-      return;
-    }
-
     if (id) {
       getPresentationById(id);
     }
-  }, [id, isPM, isAdmin, navigate, getPresentationById]);
+  }, [id, getPresentationById]);
 
   const handleDownloadPresentation = () => {
     if (!selectedPresentation?._id) return;

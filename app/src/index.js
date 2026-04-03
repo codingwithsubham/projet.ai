@@ -4,14 +4,17 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { AppDataProvider } from "./context/AppDataContext";
+import { SubscriptionProvider } from "./context/SubscriptionContext";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <AppDataProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <SubscriptionProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </SubscriptionProvider>
     </AppDataProvider>
   </React.StrictMode>
 );

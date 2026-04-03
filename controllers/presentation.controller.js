@@ -5,7 +5,7 @@ const { processPresentationWithAgent } = require("../z-agents/pptAgent");
 
 const createPresentation = async (req, res) => {
   try {
-    const { name, numberOfPages, prompt, projectId, description } = req.body;
+    const { name, numberOfPages, prompt, projectId, description, contentProvided, providedContent } = req.body;
     const userId = req.user.id;
 
     // Validation
@@ -13,6 +13,14 @@ const createPresentation = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: name, numberOfPages, prompt, projectId",
+      });
+    }
+
+    // If contentProvided mode, providedContent is required
+    if (contentProvided && !providedContent) {
+      return res.status(400).json({
+        success: false,
+        message: "providedContent is required when contentProvided is true",
       });
     }
 
@@ -62,6 +70,7 @@ const createPresentation = async (req, res) => {
     });
 
     // Start background generation
+    // If contentProvided=true, pass delegated mode to skip RAG
     processPresentationWithAgent({
       presentationId: presentation._id,
       name,
@@ -69,6 +78,8 @@ const createPresentation = async (req, res) => {
       numberOfPages: parseInt(numberOfPages),
       projectId: projectId || null,
       project,
+      delegated: !!contentProvided,
+      delegatedContent: providedContent || "",
     }).catch((error) => {
       console.error(`❌ Presentation ${presentation._id} error:`, error.message);
     });

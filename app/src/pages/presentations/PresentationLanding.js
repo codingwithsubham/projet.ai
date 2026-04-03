@@ -99,12 +99,6 @@ const PresentationLanding = () => {
     navigate(`/presentations/${id}`);
   };
 
-  useEffect(() => {
-    if (!isPM && !isAdmin) {
-      navigate("/");
-    }
-  }, [isPM, isAdmin, navigate]);
-
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case PRESENTATION_STATUS.COMPLETED:
@@ -126,14 +120,6 @@ const PresentationLanding = () => {
       minute: "2-digit",
     });
   };
-
-  if (!isPM && !isAdmin) {
-    return (
-      <div className="access-denied">
-        <p>Access denied. Only PM users can create presentations.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="presentation-landing">

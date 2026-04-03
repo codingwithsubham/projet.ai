@@ -19,13 +19,6 @@ const PresentationCreation = () => {
   const { projects } = useProjects();
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Check if user has permission
-  useEffect(() => {
-    if (!isPM && !isAdmin) {
-      navigate("/");
-    }
-  }, [isPM, isAdmin, navigate]);
-
   const handleFormSubmit = async (data) => {
     setErrorMessage("");
 
@@ -52,14 +45,6 @@ const PresentationCreation = () => {
   const handleBackToLanding = () => {
     navigate("/presentations");
   };
-
-  if (!isPM && !isAdmin) {
-    return (
-      <div className="access-denied">
-        <p>Access denied. Only PM users can create presentations.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="presentation-creation">

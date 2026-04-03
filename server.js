@@ -5,6 +5,7 @@ const { verifyLangSmithConnection } = require("./openai/langSmith");
 const { initializePgVector } = require("./config/pgvector");
 const { bootstrapUsers } = require("./services/auth.service");
 const { refreshApiKeyCache } = require("./services/apiKeyCache.service");
+const { syncMarketplace } = require("./config/marketplace");
 
 const port = process.env.PORT || 5000;
 
@@ -14,6 +15,7 @@ async function start() {
   await bootstrapUsers();
   await refreshApiKeyCache();
   await initializePgVector();
+  // await syncMarketplace();
 
   app.listen(port, () => {
     console.log(`✅ Server Started on PORT ${port}.`);

@@ -21,21 +21,27 @@ const AGENT_CACHE_MAX_SIZE = 50;
  */
 const createDynamicAgent = async (project, type, options = {}) => {
   const projectId = String(project._id);
+  
+  // PM agent with requester should not be cached (user-specific tools)
+  const shouldSkipCache = type === "PM" && options.requester;
+  
   const optionsKey = type === "dev" 
     ? `ext=${options.includeExternalTools !== false}&ro=${!!options.readOnlyMode}`
     : "default";
   const cacheKey = `${projectId}:${type}:${optionsKey}`;
 
-  const cached = agentCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    console.log(`♻️ Reusing cached ${type} agent for project ${project.name}`);
-    return cached.agent;
+  if (!shouldSkipCache) {
+    const cached = agentCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      console.log(`♻️ Reusing cached ${type} agent for project ${project.name}`);
+      return cached.agent;
+    }
   }
 
   let agent;
   if (type === "PM") {
     console.log(`\n🚀 Called: PM agent for project ${project.name}...`);
-    agent = await dynamicPmAgent(project);
+    agent = await dynamicPmAgent(project, options.requester);
   } else if (type === "general") {
     console.log(`\n🚀 Called: General agent for project ${project.name}...`);
     agent = await dynamicGeneralAgent(project);
@@ -46,16 +52,19 @@ const createDynamicAgent = async (project, type, options = {}) => {
     throw new Error(`Unknown agent type: ${type}`);
   }
 
-  // Evict oldest entries if cache is full
-  if (agentCache.size >= AGENT_CACHE_MAX_SIZE) {
-    const oldestKey = agentCache.keys().next().value;
-    agentCache.delete(oldestKey);
-  }
+  // Don't cache PM agents with requester (user-specific)
+  if (!shouldSkipCache) {
+    // Evict oldest entries if cache is full
+    if (agentCache.size >= AGENT_CACHE_MAX_SIZE) {
+      const oldestKey = agentCache.keys().next().value;
+      agentCache.delete(oldestKey);
+    }
 
-  agentCache.set(cacheKey, {
-    agent,
-    expiresAt: Date.now() + AGENT_CACHE_TTL_MS,
-  });
+    agentCache.set(cacheKey, {
+      agent,
+      expiresAt: Date.now() + AGENT_CACHE_TTL_MS,
+    });
+  }
 
   return agent;
 };

@@ -220,6 +220,7 @@ const coreOrchastrator = async ({
       message: cleanMessage,
       project,
       forceIntent: classification.intent,
+      userId, // Pass userId for delegation tools
     });
 
     // Enhance system prompt with routing directive
@@ -233,7 +234,7 @@ const coreOrchastrator = async ({
         intent: classification.intent,
         prefetchedResults: routingResult?.ragResult?.rawResults || null,
       }),
-      createDynamicAgent(project, agentType, agentOptions),
+      createDynamicAgent(project, agentType, { ...agentOptions, requester }),
     ]);
 
     const userPrompt = [
@@ -336,6 +337,7 @@ const runAgentInBackground = async ({
       message: cleanMessage,
       project,
       forceIntent: classifiedIntent,
+      userId, // Pass userId for delegation tools
     });
 
     // Use implementation intent for async tasks (stricter threshold, more chunks)
@@ -422,7 +424,7 @@ const coreOrchastratorStream = async function* ({
   try {
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw new Error("message is required");
-
+    console.log(`\n [User Message] ${cleanMessage}`);
     yield { type: "status", data: "Fetching project details..." };
     const project = await getCachedProject(projectId, requester);
     if (!project) {
@@ -502,6 +504,7 @@ const coreOrchastratorStream = async function* ({
       message: cleanMessage,
       project,
       forceIntent: classification.intent,
+      userId, // Pass userId for delegation tools
     });
 
     const enhancedSystemPrompt = routingDirective
@@ -515,7 +518,7 @@ const coreOrchastratorStream = async function* ({
         intent: classification.intent,
         prefetchedResults: routingResult?.ragResult?.rawResults || null,
       }),
-      createDynamicAgent(project, agentType, agentOptions),
+      createDynamicAgent(project, agentType, { ...agentOptions, requester }),
     ]);
 
     const userPrompt = [

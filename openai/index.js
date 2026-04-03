@@ -28,6 +28,27 @@ const createLlmForProject = (project) => {
   });
 };
 
+// Create LLM for document/presentation generation (non-streaming, longer timeout)
+const createLlmForDocGen = (project) => {
+  const apiKey = project?.openapikey;
+  const model = project?.model;
+
+  return new ChatOpenAI({
+    model,
+    apiKey,
+    maxTokens: 4096,
+    streaming: false, // Non-streaming for .invoke() calls
+    timeout: 120000,  // 2 minute timeout for long generations
+    configuration: {
+      baseURL: process.env.OPENAPI_URL,
+      defaultHeaders: {
+        "HTTP-Referer": "https://your-site.com",
+        "X-Title": "agent-ai",
+      },
+    },
+  });
+};
+
 // Lightweight LLM for intent classification (fast, deterministic)
 const createClassificationLLM = (project, mm) => {
   if (!project?.openapikey) {
@@ -67,6 +88,7 @@ module.exports = {
   embeddingsClient,
   llmAgent,
   createLlmForProject,
+  createLlmForDocGen,
   createClassificationLLM,
   agentParser,
 };

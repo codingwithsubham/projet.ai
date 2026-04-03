@@ -12,6 +12,7 @@ const TOOL_CATEGORY = {
   EXTERNAL_WRITE: "external_write", // External API write operations
   UTILITY: "utility",          // Local utilities (mermaid, markdown, etc.)
   ACTIVITY: "activity",        // Internal activity tracking
+  DELEGATION: "delegation",    // Delegate to marketplace agents
 };
 
 // Operation types (for confirmation handling)
@@ -85,6 +86,24 @@ const TOOL_REGISTRY = {
     priority: 1,
     autoExecute: true,
     description: "Generate Markdown table",
+  },
+
+  // === DELEGATION TOOLS (Priority 1 - Delegate to marketplace agents) ===
+  delegate_to_document_agent: {
+    category: TOOL_CATEGORY.DELEGATION,
+    operation: OPERATION_TYPE.WRITE,
+    priority: 1,
+    autoExecute: true,
+    description: "Delegate document generation to Document Agent",
+    requiresSubscription: "doc-agent",
+  },
+  delegate_to_presentation_agent: {
+    category: TOOL_CATEGORY.DELEGATION,
+    operation: OPERATION_TYPE.WRITE,
+    priority: 1,
+    autoExecute: true,
+    description: "Delegate presentation generation to Presentation Agent",
+    requiresSubscription: "ppt-agent",
   },
 
   // === EXTERNAL READ TOOLS (Priority 2 - Fallback when RAG insufficient) ===

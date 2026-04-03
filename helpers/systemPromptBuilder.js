@@ -104,6 +104,7 @@ const buildSystemPrompt = ({
   message,
   project,
   forceIntent = null,
+  userId = null,
 }) => {
   const resolvedAgentType = agentType;
   const intent = resolveIntent({
@@ -123,6 +124,14 @@ const buildSystemPrompt = ({
     ...buildRepositoryPromptSection(project),
     ...buildBoardPromptSection(project),
   ];
+
+  // Add user context for delegation tools
+  if (userId) {
+    systemPromptParts.push("");
+    systemPromptParts.push("=== USER CONTEXT ===");
+    systemPromptParts.push(`- Current User ID: ${userId}`);
+    systemPromptParts.push("Use this User ID when calling delegation tools (delegate_to_document_agent, etc.)");
+  }
 
   return {
     systemPrompt: systemPromptParts.join("\n"),

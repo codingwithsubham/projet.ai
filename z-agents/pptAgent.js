@@ -7,7 +7,7 @@ const { StateGraph, END, START, Annotation } = require("@langchain/langgraph");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 
 // Internal imports
-const { createLlmForProject } = require("../openai");
+const { createLlmForDocGen } = require("../openai");
 const { buildRagContext } = require("../helpers/chat.helpers");
 const presentationService = require("../services/presentation.service");
 const {
@@ -33,6 +33,36 @@ const {
 } = require("../helpers/pptAgentHelpers");
 
 // ============================================
+// LLM RETRY HELPER
+// ============================================
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const invokeWithRetry = async (llm, messages, retries = MAX_RETRIES) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await llm.invoke(messages);
+    } catch (error) {
+      const isRetryable = error.message?.includes('Abort') || 
+                          error.message?.includes('timeout') ||
+                          error.message?.includes('ECONNRESET') ||
+                          error.code === 'ECONNRESET';
+      
+      if (isRetryable && attempt < retries) {
+        console.warn(`   ⚠️ LLM call failed (attempt ${attempt}/${retries}): ${error.message}`);
+        console.log(`   🔄 Retrying in ${RETRY_DELAY_MS * attempt}ms...`);
+        await sleep(RETRY_DELAY_MS * attempt);
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
+// ============================================
 // STATE DEFINITION
 // ============================================
 
@@ -44,6 +74,10 @@ const PPTAgentState = Annotation.Root({
   numberOfPages: Annotation({ reducer: (a, b) => b ?? a, default: () => PPT_DEFAULTS.NUMBER_OF_PAGES }),
   projectId: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
   project: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+  
+  // Delegation mode - content provided by another agent (skip RAG)
+  delegated: Annotation({ reducer: (a, b) => b ?? a, default: () => false }),
+  delegatedContent: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
 
   // Working state
   llm: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
@@ -62,18 +96,28 @@ const PPTAgentState = Annotation.Root({
 // ============================================
 
 /**
- * Node 1: Initialize - Set up LLM and get RAG context
+ * Node 1: Initialize - Set up LLM and get RAG context (or use delegated content)
  */
 const initializeNode = async (state) => {
   console.log(`\n🎨 [PPT Agent] Initializing presentation generation...`);
   console.log(`   Name: ${state.name}`);
   console.log(`   Topic: ${state.prompt?.substring(0, 50)}...`);
   console.log(`   Pages: ${state.numberOfPages}`);
+  console.log(`   Mode: ${state.delegated ? "DELEGATED (skip RAG)" : "STANDARD (with RAG)"}`);
 
-  const llm = createLlmForProject(state.project);
+  const llm = createLlmForDocGen(state.project);
 
   let ragContext = "";
-  if (state.project) {
+  
+  // === DELEGATION MODE ===
+  // When delegated, use content provided by the calling agent instead of RAG
+  if (state.delegated && state.delegatedContent) {
+    console.log(`   📦 Using delegated content (${state.delegatedContent.length} chars)`);
+    ragContext = `=== CONTENT PROVIDED BY CHAT AGENT ===\n${state.delegatedContent}\n=== END OF PROVIDED CONTENT ===`;
+  }
+  // === STANDARD MODE ===
+  // Fetch context from RAG/vector store
+  else if (state.project) {
     try {
       // Extract meaningful terms and use lower threshold for better code matching
       const searchQuery = extractSearchQuery(state.name, state.prompt);
@@ -107,7 +151,9 @@ const plannerNode = async (state) => {
     numberOfPages: state.numberOfPages,
   });
 
-  const response = await state.llm.invoke([
+  console.log(`   📝 Prompt length: ${userPrompt.length} chars`);
+
+  const response = await invokeWithRetry(state.llm, [
     new SystemMessage(SYSTEM_PROMPTS.PLANNER),
     new HumanMessage(userPrompt),
   ]);
@@ -115,6 +161,7 @@ const plannerNode = async (state) => {
   let plan = parseJsonFromResponse(response.content);
 
   if (!plan) {
+    console.log(`   ⚠️ Failed to parse plan, using fallback`);
     plan = buildFallbackPlan({
       prompt: state.prompt,
       numberOfPages: state.numberOfPages,
@@ -278,6 +325,14 @@ const buildPPTAgentGraph = () => {
 /**
  * Process presentation request using LangGraph agent
  * @param {object} params - Presentation parameters
+ * @param {string} params.presentationId - Presentation ID
+ * @param {string} params.name - Presentation name
+ * @param {string} params.prompt - Presentation prompt/topic
+ * @param {number} params.numberOfPages - Number of content slides
+ * @param {string} params.projectId - Project ID
+ * @param {object} params.project - Project object
+ * @param {boolean} [params.delegated=false] - If true, skip RAG and use delegatedContent
+ * @param {string} [params.delegatedContent=""] - Content provided by delegating agent
  */
 const processPresentationWithAgent = async ({
   presentationId,
@@ -286,8 +341,11 @@ const processPresentationWithAgent = async ({
   numberOfPages,
   projectId,
   project,
+  delegated = false,
+  delegatedContent = "",
 }) => {
   console.log(`\n🚀 [PPT Agent] Starting LangGraph presentation generation...`);
+  console.log(`   Delegated mode: ${delegated}`);
   
   try {
     const agent = buildPPTAgentGraph();
@@ -299,6 +357,8 @@ const processPresentationWithAgent = async ({
       numberOfPages,
       projectId,
       project,
+      delegated,
+      delegatedContent,
     };
 
     // Run the graph

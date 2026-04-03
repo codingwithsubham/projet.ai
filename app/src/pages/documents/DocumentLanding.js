@@ -25,10 +25,6 @@ const DocumentLanding = () => {
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const refreshIntervalRef = useRef(null);
 
-  useEffect(() => {
-    if (!isPM && !isAdmin) navigate("/");
-  }, [isPM, isAdmin, navigate]);
-
   // Auto-refresh while any document is generating
   useEffect(() => {
     const hasIncomplete = documents.some(
@@ -93,10 +89,6 @@ const DocumentLanding = () => {
       year: "numeric", month: "short", day: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
-
-  if (!isPM && !isAdmin) {
-    return <div className="access-denied"><p>Access denied.</p></div>;
-  }
 
   return (
     <div className="presentation-landing">

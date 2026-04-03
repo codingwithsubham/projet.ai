@@ -3,6 +3,7 @@ import "./styles/mob.css"
 import "./styles/presentations.css";
 import "./styles/documents.css";
 import "./styles/activity.css";
+import "./styles/Marketplace.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/landing/Landing";
 import Dashboard from "./pages/dashboard/Dashboard";
@@ -19,11 +20,13 @@ import DocumentLanding from "./pages/documents/DocumentLanding";
 import DocumentCreation from "./pages/documents/DocumentCreation";
 import DocumentView from "./pages/documents/DocumentView";
 import ActivityDashboard from "./pages/activity/ActivityDashboard";
+import MarketplacePage from "./pages/marketplace/MarketplacePage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
 import AppLayout from "./routes/AppLayout";
 import AdminRoute from "./routes/AdminRoute";
 import PMRoute from "./routes/PMRoute";
+import SubscribedRoute from "./routes/SubscribedRoute";
 import MobileDevRoutes from "./mobile/dev/MobileDevRoutes";
 
 const isMobileClient = () => {
@@ -64,52 +67,53 @@ function App() {
         <Route path="/projects/:id" element={<ProjectDetails />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/marketplace" element={<MarketplacePage />} />
         <Route
           path="/presentations"
           element={
-            <PMRoute>
+            <SubscribedRoute>
               <PresentationLanding />
-            </PMRoute>
+            </SubscribedRoute>
           }
         />
         <Route
           path="/presentations/create"
           element={
-            <PMRoute>
+            <SubscribedRoute>
               <PresentationCreation />
-            </PMRoute>
+            </SubscribedRoute>
           }
         />
         <Route
           path="/presentations/:id"
           element={
-            <PMRoute>
+            <SubscribedRoute>
               <PresentationView />
-            </PMRoute>
+            </SubscribedRoute>
           }
         />
         <Route
           path="/documents"
           element={
-            <PMRoute>
+            <SubscribedRoute>
               <DocumentLanding />
-            </PMRoute>
+            </SubscribedRoute>
           }
         />
         <Route
           path="/documents/create"
           element={
-            <PMRoute>
+            <SubscribedRoute>
               <DocumentCreation />
-            </PMRoute>
+            </SubscribedRoute>
           }
         />
         <Route
           path="/documents/:id"
           element={
-            <PMRoute>
+            <SubscribedRoute>
               <DocumentView />
-            </PMRoute>
+            </SubscribedRoute>
           }
         />
         <Route

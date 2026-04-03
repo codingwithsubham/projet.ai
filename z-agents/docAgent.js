@@ -7,7 +7,7 @@ const { StateGraph, END, START, Annotation } = require("@langchain/langgraph");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 
 // Internal imports
-const { createLlmForProject } = require("../openai");
+const { createLlmForDocGen } = require("../openai");
 const { buildRagContext } = require("../helpers/chat.helpers");
 const documentService = require("../services/document.service");
 
@@ -29,6 +29,33 @@ const {
   getSectionDetails,
 } = require("../helpers/docAgentHelpers");
 
+// Retry helper for LLM calls
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const invokeWithRetry = async (llm, messages, retries = MAX_RETRIES) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await llm.invoke(messages);
+    } catch (error) {
+      const isRetryable = error.message?.includes('Abort') || 
+                          error.message?.includes('timeout') ||
+                          error.message?.includes('ECONNRESET') ||
+                          error.code === 'ECONNRESET';
+      
+      if (isRetryable && attempt < retries) {
+        console.warn(`   ⚠️ LLM call failed (attempt ${attempt}/${retries}): ${error.message}`);
+        console.log(`   🔄 Retrying in ${RETRY_DELAY_MS}ms...`);
+        await sleep(RETRY_DELAY_MS * attempt); // Exponential backoff
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
 // ============================================
 // STATE DEFINITION
 // ============================================
@@ -39,6 +66,10 @@ const DocAgentState = Annotation.Root({
   name: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
   prompt: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
   project: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
+  
+  // Delegation mode - content provided by another agent (skip RAG)
+  delegated: Annotation({ reducer: (a, b) => b ?? a, default: () => false }),
+  delegatedContent: Annotation({ reducer: (a, b) => b ?? a, default: () => "" }),
 
   // Working state
   llm: Annotation({ reducer: (a, b) => b ?? a, default: () => null }),
@@ -58,18 +89,28 @@ const DocAgentState = Annotation.Root({
 // ============================================
 
 /**
- * Node 1: Initialize - Set up LLM and get RAG context
+ * Node 1: Initialize - Set up LLM and get RAG context (or use delegated content)
  */
 const initializeNode = async (state) => {
   console.log(`\n📄 [Doc Agent] Initializing document generation...`);
   console.log(`   Name: ${state.name}`);
   console.log(`   Topic: ${state.prompt?.substring(0, 50)}...`);
+  console.log(`   Mode: ${state.delegated ? "DELEGATED (skip RAG)" : "STANDARD (with RAG)"}`);
 
   const startTime = Date.now();
-  const llm = createLlmForProject(state.project);
+  const llm = createLlmForDocGen(state.project);
 
   let ragContext = "";
-  if (state.project) {
+  
+  // === DELEGATION MODE ===
+  // When delegated, use content provided by the calling agent instead of RAG
+  if (state.delegated && state.delegatedContent) {
+    console.log(`   📦 Using delegated content (${state.delegatedContent.length} chars)`);
+    ragContext = `=== CONTENT PROVIDED BY CHAT AGENT ===\n${state.delegatedContent}\n=== END OF PROVIDED CONTENT ===`;
+  } 
+  // === STANDARD MODE ===
+  // Fetch context from RAG/vector store
+  else if (state.project) {
     try {
       // Use document name + prompt as query with lower threshold for better code matching
       // Extract key terms from name and prompt for semantic search
@@ -103,7 +144,9 @@ const plannerNode = async (state) => {
     ragContext: state.ragContext,
   });
 
-  const response = await state.llm.invoke([
+  console.log(`   📝 Prompt length: ${userPrompt.length} chars`);
+
+  const response = await invokeWithRetry(state.llm, [
     new SystemMessage(SYSTEM_PROMPTS.PLANNER),
     new HumanMessage(userPrompt),
   ]);
@@ -111,6 +154,7 @@ const plannerNode = async (state) => {
   let plan = parseJsonFromResponse(response.content);
 
   if (!plan) {
+    console.log(`   ⚠️ Failed to parse plan, using fallback`);
     plan = buildFallbackPlanForTopic(state.prompt);
   }
 
@@ -224,9 +268,16 @@ const buildDocAgentGraph = () => {
 /**
  * Process document request using LangGraph agent
  * @param {object} params - Document parameters
+ * @param {string} params.documentId - Document ID
+ * @param {string} params.name - Document name
+ * @param {string} params.prompt - Document prompt/topic
+ * @param {object} params.project - Project object
+ * @param {boolean} [params.delegated=false] - If true, skip RAG and use delegatedContent
+ * @param {string} [params.delegatedContent=""] - Content provided by delegating agent
  */
-const processDocumentWithAgent = async ({ documentId, name, prompt, project }) => {
+const processDocumentWithAgent = async ({ documentId, name, prompt, project, delegated = false, delegatedContent = "" }) => {
   console.log(`\n🚀 [Doc Agent] Starting LangGraph document generation...`);
+  console.log(`   Delegated mode: ${delegated}`);
 
   try {
     const agent = buildDocAgentGraph();
@@ -236,6 +287,8 @@ const processDocumentWithAgent = async ({ documentId, name, prompt, project }) =
       name,
       prompt,
       project,
+      delegated,
+      delegatedContent,
     };
 
     // Run the graph
