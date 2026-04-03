@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
+import { exportMarkdownToPdf, downloadMarkdown } from "../../utils/pdfExporter";
 
 const CopyIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,6 +73,185 @@ const DownloadIcon = () => (
     <line x1="12" y1="15" x2="12" y2="3" />
   </svg>
 );
+
+const PdfIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+);
+
+const MarkdownIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M9 15l2 2 4-4" />
+  </svg>
+);
+
+/**
+ * PDF Export Card - Shown when content is ready for quick PDF download
+ */
+const PdfExportCard = ({ exportData }) => {
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handlePdfDownload = async () => {
+    setDownloading(true);
+    setError(null);
+    try {
+      await exportMarkdownToPdf(exportData.content, {
+        filename: exportData.filename,
+        title: exportData.title,
+      });
+    } catch (err) {
+      console.error("PDF download failed:", err);
+      setError("Failed to generate PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleMarkdownDownload = () => {
+    try {
+      downloadMarkdown(exportData.content, {
+        filename: exportData.filename?.replace('.pdf', '.md'),
+      });
+    } catch (err) {
+      console.error("Markdown download failed:", err);
+      setError("Failed to download markdown.");
+    }
+  };
+
+  return (
+    <div className="pdf-export-card">
+      <div className="pdf-export-card__header">
+        <span className="pdf-export-card__icon">📄</span>
+        <span className="pdf-export-card__title">{exportData.title || "Document Ready"}</span>
+      </div>
+      <div className="pdf-export-card__actions">
+        <button
+          className="pdf-export-card__btn pdf-export-card__btn--primary"
+          onClick={handlePdfDownload}
+          disabled={downloading}
+        >
+          {downloading ? (
+            <>
+              <span className="pdf-export-card__spinner" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <PdfIcon />
+              Download PDF
+            </>
+          )}
+        </button>
+        <button
+          className="pdf-export-card__btn pdf-export-card__btn--secondary"
+          onClick={handleMarkdownDownload}
+        >
+          <MarkdownIcon />
+          Download MD
+        </button>
+      </div>
+      {error && <p className="pdf-export-card__error">{error}</p>}
+    </div>
+  );
+};
+
+/**
+ * Parse export marker from content
+ * Returns { exportData, cleanContent } or null if no marker found
+ */
+const parseExportMarker = (content) => {
+  if (!content || typeof content !== "string") return null;
+  
+  const markerMatch = content.match(/__EXPORT_READY__(.+?)__EXPORT_END__/s);
+  if (!markerMatch) return null;
+  
+  try {
+    const exportData = JSON.parse(markerMatch[1]);
+    // Remove the marker from content for display
+    const cleanContent = content.replace(/__EXPORT_READY__.+?__EXPORT_END__\s*/s, "").trim();
+    return { exportData, cleanContent };
+  } catch (err) {
+    console.error("Failed to parse export marker:", err);
+    return null;
+  }
+};
+
+/**
+ * Check if content is a substantial report suitable for PDF export
+ * (Has headers, tables, and significant length)
+ */
+const isExportableReport = (content) => {
+  if (!content || typeof content !== "string") return false;
+  
+  const trimmed = content.trim();
+  // Must be substantial length
+  if (trimmed.length < 500) return false;
+  
+  // Must have headers
+  const hasHeaders = /^#{1,3}\s+.+$/m.test(trimmed);
+  // Must have tables
+  const hasTables = /\|.+\|.*\n\|[-:\s|]+\|/m.test(trimmed);
+  
+  return hasHeaders && hasTables;
+};
+
+/**
+ * Extract title from markdown content for PDF filename
+ */
+const extractTitleFromContent = (content) => {
+  const h1Match = content.match(/^#\s+(.+)$/m);
+  if (h1Match) return h1Match[1].replace(/[#*_`🏁📊📋👥🚨⚠️📉🔮💡]/g, '').trim();
+  
+  const h2Match = content.match(/^##\s+(.+)$/m);
+  if (h2Match) return h2Match[1].replace(/[#*_`📊📋]/g, '').trim();
+  
+  return 'Report';
+};
+
+/**
+ * Download Report Button - Shows on substantial report messages
+ */
+const DownloadReportButton = ({ content }) => {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const title = extractTitleFromContent(content);
+      await exportMarkdownToPdf(content, { title });
+    } catch (err) {
+      console.error("PDF download failed:", err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="download-report-inline">
+      <button
+        className="download-report-btn"
+        onClick={handleDownload}
+        disabled={downloading}
+        title="Download this report as PDF"
+      >
+        {downloading ? (
+          <span className="download-report-spinner" />
+        ) : (
+          <DownloadIcon />
+        )}
+        <span>{downloading ? "Generating..." : "Download PDF"}</span>
+      </button>
+    </div>
+  );
+};
 
 // Modal component for expanded chart view
 const ChartExpandModal = ({ isOpen, onClose, svgContent, onDownload }) => {
@@ -380,9 +560,18 @@ const splitStreamingContent = (text) => {
 };
 
 const MarkdownMessage = memo(({ content, className = "chat-markdown", streaming = false }) => {
+  // Check for export marker
+  const exportParsed = useMemo(() => parseExportMarker(content), [content]);
+  
+  // Check if this is an exportable report (has headers + tables + substantial length)
+  const showDownloadButton = useMemo(
+    () => !exportParsed && !streaming && isExportableReport(content),
+    [content, exportParsed, streaming]
+  );
+  
   const normalizedContent = useMemo(
-    () => normalizePipeTableMarkdown(content || ""),
-    [content],
+    () => normalizePipeTableMarkdown(exportParsed?.cleanContent || content || ""),
+    [content, exportParsed],
   );
 
   const { stable, tail } = useMemo(
@@ -395,6 +584,16 @@ const MarkdownMessage = memo(({ content, className = "chat-markdown", streaming 
 
   return (
     <div className={className}>
+      {/* Show PDF export card if export marker detected */}
+      {exportParsed?.exportData && (
+        <PdfExportCard exportData={exportParsed.exportData} />
+      )}
+      
+      {/* Show download button for substantial reports */}
+      {showDownloadButton && (
+        <DownloadReportButton content={content} />
+      )}
+      
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
